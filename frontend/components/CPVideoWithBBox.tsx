@@ -21,7 +21,7 @@ export default function CPVideoWithBBox() {
 
     const ctx = canvas.getContext("2d");
 
-    const blob = new Blob([jpegBytes], { type: "image/jpeg" });
+    const blob = new Blob([jpegBytes as BlobPart], { type: "image/jpeg" });
     const url = URL.createObjectURL(blob);
 
     const img = new Image();
