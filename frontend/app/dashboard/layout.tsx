@@ -4,16 +4,35 @@ import CPBrand from '@/components/CPBrand';
 import CPLogo from '@/components/CPLogo';
 import { Cctv, LayoutDashboard, LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const renderTab = (label: string, href: string, icon: React.ReactNode, isSelected: boolean) => {
+  const [selectedTab, setSelectedTab] = useState<string>("");
+  const pathname = usePathname();
+
+  interface Tabs {
+    [key: string]: any;
+  }
+  const Tabs: Tabs = {
+    "Overview": { label: "Overview", href: "/dashboard/overview", icon: <LayoutDashboard /> },
+    "LiveCamera": { label: "Live Camera", href: "/dashboard/live-camera", icon: <Cctv /> },
+    "Settings": { label: "Settings", href: "/dashboard/settings", icon: <Settings /> },
+    "Logout": { label: "Logout", href: "/auth/login", icon: <LogOut /> },
+  };
+
+  useEffect(() => {
+    setSelectedTab(pathname);
+  }, [pathname]);
+
+  const renderTab = (key: string) => {
+    const { label, href, icon } = Tabs[key];
+    const isTabSelected = selectedTab === href;
     return (
-      <Link href={href} className="flex mb-2 hover:bg-primary hover:text-white px-3 py-2 rounded">
+      <Link href={href} className={`flex mb-2 hover:bg-primary hover:text-white px-3 py-2 rounded ${isTabSelected ? 'bg-primary text-white' : ''}`}>
         {icon}
-        <span className="ml-3">
-          <span className="text-sm font-medium">
-            {label}
-          </span>
+        <span className="ml-3 text-sm font-medium">
+          {label}
         </span>
       </Link>
     )
@@ -32,12 +51,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <hr className='text-gray-300' />
         <div className="mt-4 px-3 flex grow flex-col justify-between">
           <div className='flex flex-col'>
-            {renderTab("Overview", "/dashboard/overview", <LayoutDashboard />, false)}
-            {renderTab("Live Camera", "/dashboard/live-camera", <Cctv />, false)}
+            {renderTab("Overview")}
+            {renderTab("LiveCamera")}
           </div>
           <div className='flex flex-col'>
-            {renderTab("Settings", "/dashboard/settings", <Settings />, false)}
-            {renderTab("Logout", "/auth/login", <LogOut />, false)}
+            {renderTab("Settings")}
+            {renderTab("Logout")}
           </div>
         </div>
       </nav>
