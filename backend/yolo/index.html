@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Cowputer Vision WS debug</title>
+	<style>
+		:root {
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			color: #111;
+			background: #f7f7f7;
+		}
+
+		body {
+			margin: 0;
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		main {
+			width: min(90vw, 800px);
+			background: #fff;
+			border-radius: 12px;
+			box-shadow: 0 20px 70px rgba(15, 23, 42, 0.15);
+			padding: 32px;
+		}
+
+		h1 {
+			margin-top: 0;
+			font-size: 1.8rem;
+		}
+
+		label {
+			display: block;
+			font-size: 0.85rem;
+			font-weight: 600;
+			color: #555;
+			margin-bottom: 6px;
+		}
+
+		input {
+			width: 100%;
+			padding: 10px 12px;
+			border: 1px solid #d0d7de;
+			border-radius: 8px;
+			font-size: 1rem;
+		}
+
+		button {
+			border: none;
+			padding: 10px 16px;
+			border-radius: 8px;
+			font-size: 0.95rem;
+			font-weight: 600;
+			cursor: pointer;
+		}
+
+		.primary {
+			background: #111827;
+			color: #fff;
+		}
+
+		.secondary {
+			background: #e5e7eb;
+			color: #111827;
+		}
+
+		.stack {
+			display: flex;
+			gap: 12px;
+			margin-top: 16px;
+		}
+
+		.stack button {
+			flex: 1;
+		}
+
+		#status {
+			margin-top: 12px;
+			font-size: 0.9rem;
+			color: #2563eb;
+			font-weight: 600;
+		}
+
+		pre {
+			background: #0f172a;
+			color: #e2e8f0;
+			padding: 16px;
+			border-radius: 8px;
+			height: 320px;
+			overflow-y: auto;
+			font-size: 0.9rem;
+		}
+
+		.log-entry {
+			margin: 0 0 8px;
+			white-space: pre-wrap;
+			word-break: break-word;
+		}
+	</style>
+</head>
+<body>
+	<main>
+		<h1>WebSocket monitor</h1>
+		<label for="endpoint">WebSocket endpoint</label>
+		<input id="endpoint" value="ws://susan-ethics-dog-graphic.trycloudflare.com/ws/bbox" />
+
+		<div class="stack">
+			<button id="connect" class="primary">Connect</button>
+			<button id="disconnect" class="secondary" disabled>Disconnect</button>
+		</div>
+
+		<p id="status">Status: idle</p>
+
+		<pre id="log"></pre>
+	</main>
+
+	<script>
+		const endpointInput = document.getElementById("endpoint");
+		const connectBtn = document.getElementById("connect");
+		const disconnectBtn = document.getElementById("disconnect");
+		const statusEl = document.getElementById("status");
+		const logEl = document.getElementById("log");
+
+		let socket;
+
+		const log = (label, payload) => {
+			const timestamp = new Date().toLocaleTimeString();
+			const entry = document.createElement("div");
+			entry.className = "log-entry";
+			entry.textContent = `[${timestamp}] ${label}: ${payload}`;
+			logEl.appendChild(entry);
+			logEl.scrollTop = logEl.scrollHeight;
+		};
+
+		const setStatus = (text) => {
+			statusEl.textContent = `Status: ${text}`;
+		};
+
+		connectBtn.addEventListener("click", () => {
+			if (socket && socket.readyState === WebSocket.OPEN) {
+				log("info", "Already connected");
+				return;
+			}
+
+			const endpoint = endpointInput.value.trim();
+			if (!endpoint) {
+				alert("Please enter a WebSocket endpoint");
+				return;
+			}
+
+			socket = new WebSocket(endpoint);
+			setStatus("connecting...");
+			log("info", `Connecting to ${endpoint}`);
+
+			socket.onopen = () => {
+				setStatus("connected");
+				connectBtn.disabled = true;
+				disconnectBtn.disabled = false;
+				log("open", "Connection established");
+			};
+
+			socket.onmessage = (event) => {
+				log("message", event.data);
+			};
+
+			socket.onerror = (error) => {
+				log("error", error.message || "See console for details");
+				console.error(error);
+			};
+
+			socket.onclose = (event) => {
+				setStatus(`closed (code ${event.code})`);
+				connectBtn.disabled = false;
+				disconnectBtn.disabled = true;
+				log("close", `Connection closed${event.reason ? `: ${event.reason}` : ""}`);
+			};
+		});
+
+		disconnectBtn.addEventListener("click", () => {
+			if (socket && socket.readyState === WebSocket.OPEN) {
+				log("info", "Closing connection by user request");
+				socket.close();
+			}
+		});
+	</script>
+</body>
+</html>
