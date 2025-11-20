@@ -16,7 +16,7 @@ from ultralytics import YOLO
 os.environ["OPENCV_FFMPEG_LOGLEVEL"] = "quiet"
 
 RTSP_URL = "rtsp://127.0.0.1:8554/test"
-MODEL_PATH = "best.pt"
+MODEL_PATH = "bestV2.pt"
 
 # Load the YOLO model once at startup
 model = YOLO(MODEL_PATH)
