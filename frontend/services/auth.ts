@@ -1,4 +1,4 @@
-import { RegisterInput } from "@/schemas/register";
+import { LoginInput, RegisterInput } from "@/schemas/auth";
 
 export async function registerUser(data: RegisterInput) {
   const res = await fetch("http://localhost:8000/register/", {
@@ -11,6 +11,22 @@ export async function registerUser(data: RegisterInput) {
 
   if (!res.ok) {
     throw new Error(json.message || "Register failed");
+  }
+
+  return json;
+}
+
+export async function loginUser(data: LoginInput) {
+  const res = await fetch("http://localhost:8000/login/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  const json = await res.json();
+
+  if (!res.ok) {
+    throw new Error(json.message || "Login failed");
   }
 
   return json;
