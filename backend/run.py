@@ -40,7 +40,6 @@ import sys
 import textwrap
 import threading
 from pathlib import Path
-from typing import NoReturn
 
 # ---------------------------------------------------------------------------
 # 1. Load .env BEFORE any other project import
@@ -102,7 +101,6 @@ def _print_banner(processes: list[str]) -> None:
 # Process launchers
 # ---------------------------------------------------------------------------
 _children: list[subprocess.Popen] = []  # child processes to clean up
-_threads: list[threading.Thread] = []  # daemon threads
 
 
 def _launch_django() -> subprocess.Popen:
@@ -121,37 +119,20 @@ def _launch_django() -> subprocess.Popen:
     return proc
 
 
-def _launch_daemon(name: str) -> threading.Thread:
+def _launch_daemon(name: str) -> subprocess.Popen:
     """
-    Start a daemon in a background thread.
+    Start a daemon as a subprocess.
 
-    Each daemon's ``main()`` blocks forever, so we run them in threads.
+    Each daemon needs its own main thread so it can install signal handlers.
     """
-
-    def _target() -> None:
-        # Lazy-import so .env is already in os.environ
-        if name == "inference_engine":
-            from daemon.inference_engine.__main__ import main
-        elif name == "event_monitor":
-            from daemon.event_monitor.__main__ import main
-        elif name == "playback_manager":
-            from daemon.playback_manager.__main__ import main
-        elif name == "report_manager":
-            from daemon.report_manager.__main__ import main
-        else:
-            logger.error("Unknown daemon: %s", name)
-            return
-
-        try:
-            main()
-        except Exception:
-            logger.exception("Daemon %s crashed", name)
-
-    t = threading.Thread(target=_target, name=f"daemon-{name}", daemon=True)
-    t.start()
-    _threads.append(t)
-    logger.info("Daemon %-20s started  (thread %s)", name, t.name)
-    return t
+    proc = subprocess.Popen(
+        [sys.executable, "-m", f"daemon.{name}"],
+        cwd=str(_BACKEND_DIR),
+        env=os.environ.copy(),
+    )
+    _children.append(proc)
+    logger.info("Daemon %-20s started  (PID %d)", name, proc.pid)
+    return proc
 
 
 def _launch_media_server() -> subprocess.Popen | None:
