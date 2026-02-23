@@ -1,0 +1,3 @@
+{
+  "extraPaths": ["core_app", "yolov12"]
+}

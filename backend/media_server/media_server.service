@@ -1,0 +1,46 @@
+# ===========================================================================
+# Media Server — systemd service unit
+#
+# Install:
+#   sudo cp media_server.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now media_server
+#
+# Logs:
+#   journalctl -u media_server -f
+# ===========================================================================
+
+[Unit]
+Description=Cow-puter Vision Media Server (FFmpeg Dual-Output HLS)
+Documentation=https://github.com/your-org/capstone-backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+# --- Paths — adjust to your deployment ---------------------------------
+WorkingDirectory=/opt/capstone-backend
+ExecStart=/opt/capstone-backend/media_server/start.sh
+
+# --- Environment (override defaults) -----------------------------------
+# Environment=RTSP_URL=rtsp://pi:8554/test
+# Environment=STORAGE_DIR=/opt/capstone-backend/storage
+# Environment=HLS_TIME=1
+# Environment=HLS_LIST_SIZE=5
+# Environment=REC_HLS_TIME=600
+
+# --- Restart policy -----------------------------------------------------
+Restart=always
+RestartSec=5
+
+# --- Resource limits ----------------------------------------------------
+# Prevent runaway disk usage from archival segments
+# LimitFSIZE=infinity
+
+# --- Logging -------------------------------------------------------------
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=media_server
+
+[Install]
+WantedBy=multi-user.target

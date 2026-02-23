@@ -1,5 +1,9 @@
+# Storage
+storage/
+
 # Third party libraries and frameworks
 sunsmarterjie-yolov12
+yolov12
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
