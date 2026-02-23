@@ -7,8 +7,11 @@ psycopg2-binary>=2.9.0
 
 # Intelligence Daemon dependencies
 opencv-python-headless>=4.8.0
-ultralytics>=8.0.0
+# ultralytics>=8.0.0
 torch>=2.0.0
 numpy>=1.24.0
 watchdog>=3.0.0
 panzi-json-logic>=1.0.0
+
+# Environment variable management
+python-dotenv>=1.0.0
