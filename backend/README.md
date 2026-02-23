@@ -58,6 +58,7 @@ Copy `.env.example` to `.env` and edit as needed. The file is git-ignored.
 | `DJANGO_SECRET_KEY`    | _(insecure fallback)_ | Django secret key — **change in production** |
 | `DJANGO_DEBUG`         | `True`                | Enable Django debug mode                     |
 | `DJANGO_ALLOWED_HOSTS` | _(empty)_             | Comma-separated list of allowed hosts        |
+| `DJANGO_PORT`          | `8000`                | Port for the Django development server       |
 
 ### Database (PostgreSQL)
 
