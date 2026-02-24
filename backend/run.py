@@ -40,6 +40,7 @@ import sys
 import textwrap
 import threading
 from pathlib import Path
+from typing import NoReturn
 
 # ---------------------------------------------------------------------------
 # 1. Load .env BEFORE any other project import
