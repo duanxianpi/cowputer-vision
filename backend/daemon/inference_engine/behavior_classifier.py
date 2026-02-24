@@ -26,6 +26,7 @@ class Detection:
     bbox: List[float]         # [x, y, w, h]  (top-left origin)
     behavior: str = "unknown"
     confidence: float = 0.0
+    timestamp: float = 0.0    # epoch seconds when the frame was captured
 
 
 class BehaviorClassifier:

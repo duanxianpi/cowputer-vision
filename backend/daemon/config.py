@@ -42,8 +42,8 @@ DETECTION_ONLY_MODE: bool = os.getenv("DETECTION_ONLY_MODE", "false").lower() ==
 # Inference tuning
 # ---------------------------------------------------------------------------
 INFERENCE_INTERVAL: float = float(
-    os.getenv("INFERENCE_INTERVAL", "0.1")
-)  # seconds; ~10 FPS
+    os.getenv("INFERENCE_INTERVAL", "0")
+)  # seconds between inferences; 0 = unlimited (as fast as GPU allows)
 CONFIDENCE_THRESHOLD: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
 # YOLO class indices to detect.  Comma-separated, e.g. "0,19"
 # Defaults to ALL keys in BEHAVIOR_MAP so multi-class models work out-of-the-box.
@@ -55,6 +55,9 @@ DETECTION_CLASSES: list[int] = (
 )
 MIN_BBOX_AREA: int = int(os.getenv("MIN_BBOX_AREA", "1000"))  # px²
 DB_WRITE_BATCH_SIZE: int = int(os.getenv("DB_WRITE_BATCH_SIZE", "50"))
+DB_WRITE_INTERVAL: float = float(
+    os.getenv("DB_WRITE_INTERVAL", "1.0")
+)  # seconds; flush batch at least this often
 
 # ---------------------------------------------------------------------------
 # HLS / Media paths  (relative to project root or absolute)

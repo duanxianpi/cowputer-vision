@@ -24,6 +24,7 @@ def _get_model():
     global _TrackingData
     if _TrackingData is None:
         from api.models import TrackingData
+
         _TrackingData = TrackingData
     return _TrackingData
 
@@ -46,27 +47,25 @@ class DatabaseHandler:
     def write_batch(
         self,
         detections: List[Detection],
-        timestamp: float,
     ) -> None:
-        """Persist a list of detections for the given wall-clock *timestamp*.
+        """Persist a list of detections, each carrying its own timestamp.
 
         Parameters
         ----------
         detections : list[Detection]
-            Output of ``BehaviorClassifier.classify()``.
-        timestamp : float
-            ``time.time()`` epoch seconds captured when the frame was read.
+            Output of ``BehaviorClassifier.classify()``.  Each detection
+            has a ``.timestamp`` (epoch seconds) from the frame it was
+            detected in.
         """
         if not detections:
             return
 
         TrackingData = _get_model()
-        ts_ms = int(timestamp * 1000)
 
         objects = [
             TrackingData(
                 cow_id=f"cow_{det.track_id}",
-                timestamp=ts_ms,
+                timestamp=int(det.timestamp * 1000),
                 behavior=det.behavior,
                 bbox=det.bbox,
             )
@@ -77,9 +76,7 @@ class DatabaseHandler:
         for attempt in range(1, self._max_retries + 1):
             try:
                 TrackingData.objects.bulk_create(objects)
-                logger.debug(
-                    "Wrote %d tracking records (ts=%d)", len(objects), ts_ms
-                )
+                logger.debug("Wrote %d tracking records (ts=%d)", len(objects), ts_ms)
                 return
             except DatabaseError as exc:
                 logger.warning(

@@ -39,6 +39,7 @@ class InferenceEngine:
         self._model_path = model_path
         self._interval = config.INFERENCE_INTERVAL
         self._batch_size = config.DB_WRITE_BATCH_SIZE
+        self._flush_interval = config.DB_WRITE_INTERVAL
         self._running = False
 
     # ------------------------------------------------------------------
@@ -81,45 +82,66 @@ class InferenceEngine:
     ) -> None:
         last_inference_time = 0.0
         batch = []
-        batch_ts = 0.0
+        last_flush_time = time.time()
 
         # FPS tracking
-        fps_frame_count = 0
-        fps_start_time = time.time()
-        fps_log_interval = 5.0  # log FPS every 5 seconds
+        # fps_frame_count = 0
+        # fps_start_time = time.time()
+        # fps_log_interval = 5.0  # log FPS every 5 seconds
 
         while self._running:
             frame, ts = stream.read()
 
             now = time.time()
-            if frame is None or (now - last_inference_time) < self._interval:
+            if frame is None:
+                # No frame available, but still check batch flush
+                if batch and (now - last_flush_time) >= self._flush_interval:
+                    db_handler.write_batch(batch)
+                    batch.clear()
+                    last_flush_time = now
+                time.sleep(0.005)
+                continue
+
+            if self._interval > 0 and (now - last_inference_time) < self._interval:
+                # FPS limiter active — skip this frame
+                if batch and (now - last_flush_time) >= self._flush_interval:
+                    db_handler.write_batch(batch)
+                    batch.clear()
+                    last_flush_time = now
                 time.sleep(0.005)
                 continue
 
             last_inference_time = now
             detections = classifier.classify(frame)
 
+            # Stamp each detection with the frame's capture timestamp
+            for det in detections:
+                det.timestamp = ts
+
             # Update FPS counter
-            fps_frame_count += 1
-            elapsed = now - fps_start_time
-            if elapsed >= fps_log_interval:
-                current_fps = fps_frame_count / elapsed
-                logger.info("Inference FPS: %.2f", current_fps)
-                fps_frame_count = 0
-                fps_start_time = now
+            # fps_frame_count += 1
+            # elapsed = now - fps_start_time
+            # if elapsed >= fps_log_interval:
+            #     current_fps = fps_frame_count / elapsed
+            #     logger.info("Inference FPS: %.2f", current_fps)
+            #     fps_frame_count = 0
+            #     fps_start_time = now
 
             if detections:
                 batch.extend(detections)
-                batch_ts = ts  # use the timestamp of the last captured frame
 
-            # Flush if batch is large enough, or >1s since last flush
-            if batch and (len(batch) >= self._batch_size or (now - batch_ts) > 1.0):
-                db_handler.write_batch(batch, batch_ts)
+            # Flush if batch is large enough or flush interval elapsed
+            if batch and (
+                len(batch) >= self._batch_size
+                or (now - last_flush_time) >= self._flush_interval
+            ):
+                db_handler.write_batch(batch)
                 batch.clear()
+                last_flush_time = now
 
         # Flush remaining
         if batch:
-            db_handler.write_batch(batch, batch_ts)
+            db_handler.write_batch(batch)
 
     def _install_signal_handlers(self) -> None:
         """Graceful shutdown on SIGTERM / SIGINT."""
