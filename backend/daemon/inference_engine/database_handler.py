@@ -76,7 +76,7 @@ class DatabaseHandler:
         for attempt in range(1, self._max_retries + 1):
             try:
                 TrackingData.objects.bulk_create(objects)
-                logger.debug("Wrote %d tracking records (ts=%d)", len(objects), ts_ms)
+                logger.debug("Wrote %d tracking records", len(objects))
                 return
             except DatabaseError as exc:
                 logger.warning(
