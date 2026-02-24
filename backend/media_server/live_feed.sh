@@ -25,8 +25,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 RTSP_URL="${RTSP_URL:-rtsp://pi:8554/test}"
 HLS_DIR="${HLS_DIR:-storage/hls}"
-HLS_TIME="${HLS_TIME:-1}"           # segment duration in seconds
-HLS_LIST_SIZE="${HLS_LIST_SIZE:-5}" # number of segments in playlist
+HLS_TIME="${HLS_TIME:-10}"          # segment duration in seconds
+HLS_LIST_SIZE="${HLS_LIST_SIZE:-6}" # number of segments in playlist
 
 mkdir -p "$HLS_DIR"
 
@@ -43,7 +43,8 @@ exec ffmpeg -y \
     -c:v libx264 \
     -preset ultrafast \
     -tune zerolatency \
-    -g 25 \
+    -r 24 \
+    -g 24 \
     -sc_threshold 0 \
     -c:a aac \
     -b:a 128k \
