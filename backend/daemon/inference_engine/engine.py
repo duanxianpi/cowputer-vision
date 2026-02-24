@@ -83,6 +83,11 @@ class InferenceEngine:
         batch = []
         batch_ts = 0.0
 
+        # FPS tracking
+        fps_frame_count = 0
+        fps_start_time = time.time()
+        fps_log_interval = 5.0  # log FPS every 5 seconds
+
         while self._running:
             frame, ts = stream.read()
 
@@ -94,15 +99,21 @@ class InferenceEngine:
             last_inference_time = now
             detections = classifier.classify(frame)
 
+            # Update FPS counter
+            fps_frame_count += 1
+            elapsed = now - fps_start_time
+            if elapsed >= fps_log_interval:
+                current_fps = fps_frame_count / elapsed
+                logger.info("Inference FPS: %.2f", current_fps)
+                fps_frame_count = 0
+                fps_start_time = now
+
             if detections:
                 batch.extend(detections)
                 batch_ts = ts  # use the timestamp of the last captured frame
 
             # Flush if batch is large enough, or >1s since last flush
-            if batch and (
-                len(batch) >= self._batch_size
-                or (now - batch_ts) > 1.0
-            ):
+            if batch and (len(batch) >= self._batch_size or (now - batch_ts) > 1.0):
                 db_handler.write_batch(batch, batch_ts)
                 batch.clear()
 
@@ -112,6 +123,7 @@ class InferenceEngine:
 
     def _install_signal_handlers(self) -> None:
         """Graceful shutdown on SIGTERM / SIGINT."""
+
         def _handler(signum, frame):
             logger.info("Received signal %d — shutting down", signum)
             self.stop()
