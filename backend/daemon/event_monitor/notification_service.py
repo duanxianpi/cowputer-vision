@@ -14,14 +14,25 @@ from daemon.event_monitor.state_tracker import CowState
 logger = logging.getLogger(__name__)
 
 _AlertEvent = None
+_Setting = None
 
 
 def _get_model():
     global _AlertEvent
     if _AlertEvent is None:
         from api.models import AlertEvent
+
         _AlertEvent = AlertEvent
     return _AlertEvent
+
+
+def _get_setting_model():
+    global _Setting
+    if _Setting is None:
+        from api.models import Setting
+
+        _Setting = Setting
+    return _Setting
 
 
 class NotificationService:
@@ -30,15 +41,24 @@ class NotificationService:
     Deduplication
     -------------
     An alert will **not** fire again for the same ``(rule, cow_id)``
-    pair within ``config.ALERT_DEDUP_MINUTES`` minutes.
+    pair within ``ALERT_DEDUP_MINUTES`` minutes (read from DB Setting
+    on each call, falling back to env-var config).
     """
 
-    def __init__(self) -> None:
-        self._dedup_minutes = config.ALERT_DEDUP_MINUTES
+    def _get_dedup_minutes(self) -> int:
+        """Read alert_dedup_minutes from DB Setting, falling back to env-var config."""
+        try:
+            Setting = _get_setting_model()
+            row = Setting.objects.filter(key="alert_dedup_minutes").first()
+            if row is not None:
+                return int(row.value)
+        except Exception as exc:
+            logger.warning("Could not read alert_dedup_minutes from DB: %s", exc)
+        return config.ALERT_DEDUP_MINUTES
 
     def dispatch(
         self,
-        rule,       # AlertRule model instance
+        rule,  # AlertRule model instance
         cow_id: str,
         state: CowState,
     ) -> bool:
@@ -49,7 +69,7 @@ class NotificationService:
         AlertEvent = _get_model()
 
         # --- Deduplication check ---
-        cutoff = timezone.now() - timedelta(minutes=self._dedup_minutes)
+        cutoff = timezone.now() - timedelta(minutes=self._get_dedup_minutes())
         recent = AlertEvent.objects.filter(
             rule=rule,
             triggered_at__gte=cutoff,

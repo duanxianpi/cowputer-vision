@@ -14,6 +14,17 @@ from daemon.report_manager.report_storage import ReportStorage
 
 logger = logging.getLogger(__name__)
 
+_Setting = None
+
+
+def _get_setting_model():
+    global _Setting
+    if _Setting is None:
+        from api.models import Setting
+
+        _Setting = Setting
+    return _Setting
+
 
 class ReportManager:
     """Waits until the configured report hour, generates a daily report,
@@ -30,8 +41,8 @@ class ReportManager:
         self._install_signal_handlers()
         logger.info(
             "ReportManager running (schedule=%02d:%02d UTC)",
-            config.REPORT_SCHEDULE_HOUR,
-            config.REPORT_SCHEDULE_MINUTE,
+            self._get_schedule_hour(),
+            self._get_schedule_minute(),
         )
 
         while not self._stop_event.is_set():
@@ -68,19 +79,41 @@ class ReportManager:
         except Exception as exc:
             logger.exception("Report generation failed: %s", exc)
 
-    @staticmethod
-    def _seconds_until_next_run() -> float:
+    def _get_schedule_hour(self) -> int:
+        """Read report_hour from DB Setting, falling back to env-var config."""
+        try:
+            Setting = _get_setting_model()
+            row = Setting.objects.filter(key="report_hour").first()
+            if row is not None:
+                return int(row.value)
+        except Exception as exc:
+            logger.warning("Could not read report_hour from DB: %s", exc)
+        return config.REPORT_SCHEDULE_HOUR
+
+    def _get_schedule_minute(self) -> int:
+        """Read report_minute from DB Setting, falling back to env-var config."""
+        try:
+            Setting = _get_setting_model()
+            row = Setting.objects.filter(key="report_minute").first()
+            if row is not None:
+                return int(row.value)
+        except Exception as exc:
+            logger.warning("Could not read report_minute from DB: %s", exc)
+        return config.REPORT_SCHEDULE_MINUTE
+
+    def _seconds_until_next_run(self) -> float:
         """Seconds until the next scheduled report time."""
+        from datetime import timedelta
+
         now = datetime.now(tz=timezone.utc)
         target = now.replace(
-            hour=config.REPORT_SCHEDULE_HOUR,
-            minute=config.REPORT_SCHEDULE_MINUTE,
+            hour=self._get_schedule_hour(),
+            minute=self._get_schedule_minute(),
             second=0,
             microsecond=0,
         )
         if target <= now:
             # Already past today's target → schedule for tomorrow
-            from datetime import timedelta
             target += timedelta(days=1)
         return (target - now).total_seconds()
 

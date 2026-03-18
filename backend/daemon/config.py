@@ -22,11 +22,14 @@ MODEL_PATH: str = os.getenv("MODEL_PATH")
 # Override via BEHAVIOR_MAP env var as JSON, e.g. '{"0":"walking","1":"standing"}'
 # When the model is detection-only every detection defaults to "unknown".
 BEHAVIOR_MAP: dict[int, str] = {
-    0: "walking",
-    1: "standing",
-    2: "feeding",
-    3: "drinking",
-    4: "lying",
+    0: "unknown",
+    1: "walking",
+    2: "standing",
+    3: "feeding_head_up",
+    4: "feeding_head_down",
+    5: "licking",
+    6: "drinking",
+    7: "lying",
 }
 _behavior_map_env = os.getenv("BEHAVIOR_MAP")
 if _behavior_map_env:
