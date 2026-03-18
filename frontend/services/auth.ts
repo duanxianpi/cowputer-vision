@@ -1,33 +1,14 @@
-import { LoginInput, RegisterInput } from "@/schemas/auth";
+import { z } from "zod";
+import { api, schemas } from "@/api/client";
 
-export async function registerUser(data: RegisterInput) {
-  const res = await fetch("http://localhost:8000/register/", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+// Get types from Zod schemas
+export type InitStatus = z.infer<typeof schemas.InitStatus>;
+export type SetupPayload = z.infer<typeof schemas.Setup>;
+export type AuthPayload = z.infer<typeof schemas.Auth>;
+export type TokenResponse = z.infer<typeof schemas.TokenResponse>;
 
-  const json = await res.json();
-
-  if (!res.ok) {
-    throw new Error(json.message || "Register failed");
-  }
-
-  return json;
-}
-
-export async function loginUser(data: LoginInput) {
-  const res = await fetch("http://localhost:8000/login/", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-
-  const json = await res.json();
-
-  if (!res.ok) {
-    throw new Error(json.message || "Login failed");
-  }
-
-  return json;
-}
+export const authService = {
+  checkInitStatus: () => api.get("/api/setup"),
+  setup: (data: SetupPayload) => api.post("/api/setup", data),
+  login: (data: AuthPayload) => api.post("/api/auth", data),
+};

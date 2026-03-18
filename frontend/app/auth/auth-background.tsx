@@ -27,12 +27,12 @@ export default function AuthBackground() {
                     <div className='text-white text-2xl mb-2 pt-40'>
                         WELCOME TO
                     </div>
-                    <div className="h-16 w-16 my-4">
+                    {/* <div className="h-16 w-16 my-4">
                         <CPLogo />
-                    </div>
+                    </div> */}
                     <CPBrand whiteVariant={true} textClassName="text-6xl" />
                     <div className='text-white text-lg font-light'>
-                        Computer vision for your to Herd Health
+                        Your Window to Herd Health
                     </div>
                 </div>
             </div>
