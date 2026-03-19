@@ -8,6 +8,7 @@ import signal
 import time
 
 from daemon import config
+from daemon.settings_store import get_float_setting, get_int_setting
 from daemon.event_monitor.state_tracker import StateTracker
 from daemon.event_monitor.alert_rule_engine import AlertRuleEngine
 from daemon.event_monitor.notification_service import NotificationService
@@ -22,6 +23,7 @@ def _get_tracking_model():
     global _TrackingData
     if _TrackingData is None:
         from api.models import TrackingData
+
         _TrackingData = TrackingData
     return _TrackingData
 
@@ -59,13 +61,15 @@ class EventMonitor:
         """Blocking main loop."""
         self._running = True
         self._install_signal_handlers()
+        self._refresh_runtime_settings()
         logger.info(
             "EventMonitor running (poll=%.1fs, lookback=%ds)",
             self._poll_interval,
-            config.EVENT_LOOKBACK_SECONDS,
+            int(self._lookback_ms / 1000),
         )
 
         while self._running:
+            self._refresh_runtime_settings()
             try:
                 self._tick()
             except Exception as exc:
@@ -82,6 +86,20 @@ class EventMonitor:
     # Internal
     # ------------------------------------------------------------------
 
+    def _refresh_runtime_settings(self) -> None:
+        """Pull runtime-tunable monitor settings from DB-backed Setting."""
+        self._poll_interval = get_float_setting(
+            "event_poll_interval",
+            config.EVENT_POLL_INTERVAL,
+            min_value=0.05,
+        )
+        lookback_seconds = get_int_setting(
+            "event_lookback_seconds",
+            config.EVENT_LOOKBACK_SECONDS,
+            min_value=1,
+        )
+        self._lookback_ms = lookback_seconds * 1000
+
     def _tick(self) -> None:
         TrackingData = _get_tracking_model()
 
@@ -90,8 +108,7 @@ class EventMonitor:
         lower_bound = max(self._cursor_ts, now_ms - self._lookback_ms)
 
         records = (
-            TrackingData.objects
-            .filter(timestamp__gt=lower_bound)
+            TrackingData.objects.filter(timestamp__gt=lower_bound)
             .order_by("timestamp")
             .values_list("cow_id", "behavior", "timestamp")
         )

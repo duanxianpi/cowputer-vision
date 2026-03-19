@@ -9,21 +9,11 @@ import time
 from datetime import datetime, timezone
 
 from daemon import config
+from daemon.settings_store import get_int_setting
 from daemon.report_manager.report_generator import ReportGenerator
 from daemon.report_manager.report_storage import ReportStorage
 
 logger = logging.getLogger(__name__)
-
-_Setting = None
-
-
-def _get_setting_model():
-    global _Setting
-    if _Setting is None:
-        from api.models import Setting
-
-        _Setting = Setting
-    return _Setting
 
 
 class ReportManager:
@@ -81,25 +71,21 @@ class ReportManager:
 
     def _get_schedule_hour(self) -> int:
         """Read report_hour from DB Setting, falling back to env-var config."""
-        try:
-            Setting = _get_setting_model()
-            row = Setting.objects.filter(key="report_hour").first()
-            if row is not None:
-                return int(row.value)
-        except Exception as exc:
-            logger.warning("Could not read report_hour from DB: %s", exc)
-        return config.REPORT_SCHEDULE_HOUR
+        return get_int_setting(
+            "report_hour",
+            config.REPORT_SCHEDULE_HOUR,
+            min_value=0,
+            max_value=23,
+        )
 
     def _get_schedule_minute(self) -> int:
         """Read report_minute from DB Setting, falling back to env-var config."""
-        try:
-            Setting = _get_setting_model()
-            row = Setting.objects.filter(key="report_minute").first()
-            if row is not None:
-                return int(row.value)
-        except Exception as exc:
-            logger.warning("Could not read report_minute from DB: %s", exc)
-        return config.REPORT_SCHEDULE_MINUTE
+        return get_int_setting(
+            "report_minute",
+            config.REPORT_SCHEDULE_MINUTE,
+            min_value=0,
+            max_value=59,
+        )
 
     def _seconds_until_next_run(self) -> float:
         """Seconds until the next scheduled report time."""

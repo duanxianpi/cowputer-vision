@@ -11,11 +11,18 @@ import signal
 import time
 
 from daemon import config
+from daemon.settings_store import (
+    get_float_setting,
+    get_int_list_setting,
+    get_int_setting,
+)
 from daemon.inference_engine.video_stream import VideoStream
 from daemon.inference_engine.behavior_classifier import BehaviorClassifier
 from daemon.inference_engine.database_handler import DatabaseHandler
 
 logger = logging.getLogger(__name__)
+
+_SETTINGS_REFRESH_SECONDS = 5.0
 
 
 class InferenceEngine:
@@ -40,6 +47,7 @@ class InferenceEngine:
         self._interval = config.INFERENCE_INTERVAL
         self._batch_size = config.DB_WRITE_BATCH_SIZE
         self._flush_interval = config.DB_WRITE_INTERVAL
+        self._last_settings_refresh = 0.0
         self._running = False
 
     # ------------------------------------------------------------------
@@ -57,6 +65,7 @@ class InferenceEngine:
         logger.info("RTSP URL: %s", self._rtsp_url)
 
         classifier = BehaviorClassifier(self._model_path)
+        self._refresh_runtime_settings(classifier)
         db_handler = DatabaseHandler()
 
         with VideoStream(self._rtsp_url) as stream:
@@ -93,6 +102,9 @@ class InferenceEngine:
             frame, ts = stream.read()
 
             now = time.time()
+            if now - self._last_settings_refresh >= _SETTINGS_REFRESH_SECONDS:
+                self._refresh_runtime_settings(classifier)
+
             if frame is None:
                 # No frame available, but still check batch flush
                 if batch and (now - last_flush_time) >= self._flush_interval:
@@ -142,6 +154,42 @@ class InferenceEngine:
         # Flush remaining
         if batch:
             db_handler.write_batch(batch)
+
+    def _refresh_runtime_settings(self, classifier: BehaviorClassifier) -> None:
+        """Pull runtime-tunable inference settings from DB-backed Setting."""
+        self._interval = get_float_setting(
+            "inference_interval",
+            config.INFERENCE_INTERVAL,
+            min_value=0.0,
+        )
+        self._batch_size = get_int_setting(
+            "db_write_batch_size",
+            config.DB_WRITE_BATCH_SIZE,
+            min_value=1,
+        )
+        self._flush_interval = get_float_setting(
+            "db_write_interval",
+            config.DB_WRITE_INTERVAL,
+            min_value=0.01,
+        )
+        classifier.update_runtime_config(
+            confidence_threshold=get_float_setting(
+                "confidence_threshold",
+                config.CONFIDENCE_THRESHOLD,
+                min_value=0.0,
+                max_value=1.0,
+            ),
+            detection_classes=get_int_list_setting(
+                "detection_classes",
+                config.DETECTION_CLASSES,
+            ),
+            min_bbox_area=get_int_setting(
+                "min_bbox_area",
+                config.MIN_BBOX_AREA,
+                min_value=1,
+            ),
+        )
+        self._last_settings_refresh = time.time()
 
     def _install_signal_handlers(self) -> None:
         """Graceful shutdown on SIGTERM / SIGINT."""

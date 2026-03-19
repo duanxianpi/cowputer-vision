@@ -9,12 +9,12 @@ from datetime import timedelta
 from django.utils import timezone
 
 from daemon import config
+from daemon.settings_store import get_int_setting
 from daemon.event_monitor.state_tracker import CowState
 
 logger = logging.getLogger(__name__)
 
 _AlertEvent = None
-_Setting = None
 
 
 def _get_model():
@@ -24,15 +24,6 @@ def _get_model():
 
         _AlertEvent = AlertEvent
     return _AlertEvent
-
-
-def _get_setting_model():
-    global _Setting
-    if _Setting is None:
-        from api.models import Setting
-
-        _Setting = Setting
-    return _Setting
 
 
 class NotificationService:
@@ -47,14 +38,11 @@ class NotificationService:
 
     def _get_dedup_minutes(self) -> int:
         """Read alert_dedup_minutes from DB Setting, falling back to env-var config."""
-        try:
-            Setting = _get_setting_model()
-            row = Setting.objects.filter(key="alert_dedup_minutes").first()
-            if row is not None:
-                return int(row.value)
-        except Exception as exc:
-            logger.warning("Could not read alert_dedup_minutes from DB: %s", exc)
-        return config.ALERT_DEDUP_MINUTES
+        return get_int_setting(
+            "alert_dedup_minutes",
+            config.ALERT_DEDUP_MINUTES,
+            min_value=0,
+        )
 
     def dispatch(
         self,

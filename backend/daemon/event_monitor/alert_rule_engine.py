@@ -8,6 +8,7 @@ import time
 from typing import List, Tuple
 
 from daemon import config
+from daemon.settings_store import get_int_setting
 from daemon.event_monitor.state_tracker import CowState
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ def _get_model():
     global _AlertRule
     if _AlertRule is None:
         from api.models import AlertRule
+
         _AlertRule = AlertRule
     return _AlertRule
 
@@ -45,7 +47,6 @@ class AlertRuleEngine:
     def __init__(self) -> None:
         self._rules: list = []
         self._last_refresh: float = 0.0
-        self._refresh_interval = config.ALERT_RULE_REFRESH_SECONDS
 
     def evaluate(
         self,
@@ -77,9 +78,7 @@ class AlertRuleEngine:
                     if result:
                         matches.append((rule, cow_id, state))
                 except Exception as exc:
-                    logger.warning(
-                        "Error evaluating rule %s: %s", rule.name, exc
-                    )
+                    logger.warning("Error evaluating rule %s: %s", rule.name, exc)
         return matches
 
     # ------------------------------------------------------------------
@@ -87,8 +86,13 @@ class AlertRuleEngine:
     # ------------------------------------------------------------------
 
     def _maybe_refresh(self) -> None:
+        refresh_interval = get_int_setting(
+            "alert_rule_refresh_seconds",
+            config.ALERT_RULE_REFRESH_SECONDS,
+            min_value=1,
+        )
         now = time.time()
-        if (now - self._last_refresh) < self._refresh_interval:
+        if (now - self._last_refresh) < refresh_interval:
             return
         self._refresh()
         self._last_refresh = now

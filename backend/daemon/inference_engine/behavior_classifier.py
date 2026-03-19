@@ -7,7 +7,7 @@ Wraps ``ultralytics.YOLO`` and converts raw results into a list of
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List
 
 import numpy as np
@@ -23,10 +23,10 @@ class Detection:
     """Single detected cow in one frame."""
 
     track_id: int
-    bbox: List[float]         # [x, y, w, h]  (top-left origin)
+    bbox: List[float]  # [x, y, w, h]  (top-left origin)
     behavior: str = "unknown"
     confidence: float = 0.0
-    timestamp: float = 0.0    # epoch seconds when the frame was captured
+    timestamp: float = 0.0  # epoch seconds when the frame was captured
 
 
 class BehaviorClassifier:
@@ -47,6 +47,18 @@ class BehaviorClassifier:
         self._min_area = config.MIN_BBOX_AREA
         self._detection_only = config.DETECTION_ONLY_MODE
         self._behavior_map = config.BEHAVIOR_MAP
+
+    def update_runtime_config(
+        self,
+        *,
+        confidence_threshold: float,
+        detection_classes: list[int],
+        min_bbox_area: int,
+    ) -> None:
+        """Apply runtime-configurable inference settings."""
+        self._conf = confidence_threshold
+        self._classes = detection_classes
+        self._min_area = min_bbox_area
 
     def classify(self, frame: np.ndarray) -> List[Detection]:
         """Run tracking inference on *frame* and return detections.
@@ -76,12 +88,14 @@ class BehaviorClassifier:
             if r.boxes.id is None:
                 continue
 
-            boxes = r.boxes.xywh.cpu().numpy()   # centre-x, centre-y, w, h
+            boxes = r.boxes.xywh.cpu().numpy()  # centre-x, centre-y, w, h
             track_ids = r.boxes.id.int().cpu().tolist()
             confidences = r.boxes.conf.cpu().tolist()
 
             # If the model has class predictions, use them for behavior
-            cls_ids = r.boxes.cls.int().cpu().tolist() if r.boxes.cls is not None else []
+            cls_ids = (
+                r.boxes.cls.int().cpu().tolist() if r.boxes.cls is not None else []
+            )
 
             for idx, (box, track_id) in enumerate(zip(boxes, track_ids)):
                 x_c, y_c, w, h = box

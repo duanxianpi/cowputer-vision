@@ -11,11 +11,11 @@ import threading
 from typing import Optional
 
 from daemon import config
+from daemon.settings_store import get_float_setting, get_int_setting
 
 logger = logging.getLogger(__name__)
 
 _VideoSegment = None
-_Setting = None
 
 
 def _get_model():
@@ -25,15 +25,6 @@ def _get_model():
 
         _VideoSegment = VideoSegment
     return _VideoSegment
-
-
-def _get_setting_model():
-    global _Setting
-    if _Setting is None:
-        from api.models import Setting
-
-        _Setting = Setting
-    return _Setting
 
 
 class RetentionService:
@@ -56,7 +47,7 @@ class RetentionService:
         check_interval: Optional[int] = None,
     ) -> None:
         self._rec_dir = rec_dir or config.REC_DIR
-        self._check_interval = check_interval or config.RETENTION_CHECK_INTERVAL
+        self._check_interval_override = check_interval
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
@@ -66,9 +57,9 @@ class RetentionService:
         self._thread.start()
         logger.info(
             "RetentionService started (interval=%ds, age=%dd, disk=%.0f GB)",
-            self._check_interval,
-            config.RETENTION_DAYS,
-            config.RETENTION_MAX_DISK_GB,
+            self._get_check_interval(),
+            self._get_retention_days(),
+            self._get_retention_max_disk_gb(),
         )
 
     def stop(self) -> None:
@@ -81,27 +72,30 @@ class RetentionService:
     # Internal
     # ------------------------------------------------------------------
 
+    def _get_check_interval(self) -> int:
+        if self._check_interval_override is not None:
+            return self._check_interval_override
+        return get_int_setting(
+            "retention_check_interval",
+            config.RETENTION_CHECK_INTERVAL,
+            min_value=1,
+        )
+
     def _get_retention_days(self) -> int:
         """Read retention_days from DB Setting model, falling back to env-var config."""
-        try:
-            Setting = _get_setting_model()
-            row = Setting.objects.filter(key="retention_days").first()
-            if row is not None:
-                return int(row.value)
-        except Exception as exc:
-            logger.warning("Could not read retention_days from DB: %s", exc)
-        return config.RETENTION_DAYS
+        return get_int_setting(
+            "retention_days",
+            config.RETENTION_DAYS,
+            min_value=1,
+        )
 
     def _get_retention_max_disk_gb(self) -> float:
         """Read retention_max_disk_gb from DB Setting model, falling back to env-var config."""
-        try:
-            Setting = _get_setting_model()
-            row = Setting.objects.filter(key="retention_max_disk_gb").first()
-            if row is not None:
-                return float(row.value)
-        except Exception as exc:
-            logger.warning("Could not read retention_max_disk_gb from DB: %s", exc)
-        return config.RETENTION_MAX_DISK_GB
+        return get_float_setting(
+            "retention_max_disk_gb",
+            config.RETENTION_MAX_DISK_GB,
+            min_value=0.0,
+        )
 
     def _loop(self) -> None:
         while self._running:
@@ -111,7 +105,8 @@ class RetentionService:
             except Exception as exc:
                 logger.exception("RetentionService error: %s", exc)
             # Interruptible sleep
-            for _ in range(self._check_interval):
+            check_interval = self._get_check_interval()
+            for _ in range(check_interval):
                 if not self._running:
                     return
                 time.sleep(1)
