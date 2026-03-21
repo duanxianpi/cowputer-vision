@@ -11,7 +11,11 @@ import os
 import time
 from typing import Any, Optional
 
-from watchdog.events import FileSystemEventHandler, FileCreatedEvent  # pyright: ignore[reportMissingModuleSource]
+from watchdog.events import (
+    FileSystemEventHandler,
+    FileCreatedEvent,
+    FileMovedEvent,
+)  # pyright: ignore[reportMissingModuleSource]
 from watchdog.observers import Observer  # pyright: ignore[reportMissingModuleSource]
 
 from daemon import config
@@ -27,6 +31,7 @@ def _get_model():
     global _VideoSegment
     if _VideoSegment is None:
         from api.models import VideoSegment
+
         _VideoSegment = VideoSegment
     return _VideoSegment
 
@@ -45,10 +50,23 @@ class _TsFileHandler(FileSystemEventHandler):
         src_path: str = str(event.src_path)
         if not src_path.endswith(".ts"):
             return
-        logger.info("New segment detected: %s", src_path)
+        logger.info("New segment detected (created): %s", src_path)
         # Small delay — FFmpeg may still be writing the file / index
         time.sleep(1)
         self._sync_segment(os.path.basename(src_path))
+
+    def on_moved(self, event: FileMovedEvent) -> None:  # type: ignore[override]
+        """Handle rename events — FFmpeg with ``-hls_flags temp_file``
+        writes to a ``.tmp`` file first, then renames to ``.ts``."""
+        if event.is_directory:
+            return
+        dest_path: str = str(event.dest_path)
+        if not dest_path.endswith(".ts"):
+            return
+        logger.info("New segment detected (moved): %s", dest_path)
+        # Small delay — FFmpeg may still be updating the index
+        time.sleep(1)
+        self._sync_segment(os.path.basename(dest_path))
 
     def _sync_segment(self, filename: str) -> None:
         """Parse the index and upsert the record for *filename*."""
@@ -72,9 +90,7 @@ class _TsFileHandler(FileSystemEventHandler):
                 )
                 return
 
-        logger.warning(
-            "Segment %s not found in index %s", filename, self._index_path
-        )
+        logger.warning("Segment %s not found in index %s", filename, self._index_path)
 
 
 class MetadataSyncer:

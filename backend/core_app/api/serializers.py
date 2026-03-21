@@ -4,20 +4,29 @@ DRF serializers for the Cow-puter Vision API.
 
 from rest_framework import serializers
 
-from .models import AlertEvent, AlertRule, AppConfig, Report, Setting, TrackingData, VideoSegment
+from .models import (
+    AlertEvent,
+    AlertRule,
+    AppConfig,
+    Report,
+    Setting,
+    TrackingData,
+    VideoSegment,
+)
 
 
 # ---------------------------------------------------------------------------
 # Setup & Auth
 # ---------------------------------------------------------------------------
 
+
 class SetupSerializer(serializers.Serializer):
     """Validates first-time setup payload."""
 
-    username = serializers.CharField(max_length=150)
-    password = serializers.CharField(max_length=128, write_only=True)
+    username = serializers.CharField(min_length=3, max_length=150)
+    password = serializers.CharField(min_length=8, max_length=128, write_only=True)
     email = serializers.EmailField()
-    rtsp_url = serializers.CharField(max_length=255)
+    rtsp_url = serializers.CharField(min_length=1, max_length=255)
 
 
 class AuthSerializer(serializers.Serializer):
@@ -31,6 +40,7 @@ class AuthSerializer(serializers.Serializer):
 # Tracking Data
 # ---------------------------------------------------------------------------
 
+
 class TrackingDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrackingData
@@ -40,6 +50,7 @@ class TrackingDataSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 # Alerts
 # ---------------------------------------------------------------------------
+
 
 class AlertEventSerializer(serializers.ModelSerializer):
     class Meta:
@@ -53,8 +64,17 @@ class AlertRuleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AlertRule
-        fields = ["id", "name", "conditions", "actions", "is_active", "events"]
-        read_only_fields = ["id"]
+        fields = [
+            "id",
+            "name",
+            "description",
+            "conditions",
+            "actions",
+            "is_active",
+            "last_modified_at",
+            "events",
+        ]
+        read_only_fields = ["id", "last_modified_at"]
 
 
 class AlertRuleWriteSerializer(serializers.ModelSerializer):
@@ -62,13 +82,22 @@ class AlertRuleWriteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AlertRule
-        fields = ["id", "name", "conditions", "actions", "is_active"]
-        read_only_fields = ["id"]
+        fields = [
+            "id",
+            "name",
+            "description",
+            "conditions",
+            "actions",
+            "is_active",
+            "last_modified_at",
+        ]
+        read_only_fields = ["id", "last_modified_at"]
 
 
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
+
 
 class SettingSerializer(serializers.ModelSerializer):
     class Meta:
@@ -80,6 +109,7 @@ class SettingSerializer(serializers.ModelSerializer):
 # Playback / Video Segments
 # ---------------------------------------------------------------------------
 
+
 class VideoSegmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = VideoSegment
@@ -89,6 +119,7 @@ class VideoSegmentSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 # Reports
 # ---------------------------------------------------------------------------
+
 
 class ReportListSerializer(serializers.ModelSerializer):
     """Lightweight serializer that excludes the heavy ``data`` blob."""
