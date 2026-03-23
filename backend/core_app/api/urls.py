@@ -12,6 +12,7 @@ from .views import (
     AuthView,
     HLSView,
     PlaybackView,
+    RecView,
     ReportListView,
     SettingsView,
     SetupView,
@@ -21,26 +22,21 @@ from .views import (
 urlpatterns = [
     # First-time setup & status check
     path("api/setup", SetupView.as_view(), name="setup"),
-
     # Authentication (JWT login)
     path("api/auth", AuthView.as_view(), name="auth"),
-
     # Tracking data query (JsonLogic)
     path("api/tracks", TracksView.as_view(), name="tracks"),
-
     # Alert rules CRUD
     path("api/alerts", AlertRuleListView.as_view(), name="alert-list"),
     path("api/alerts/<int:pk>", AlertRuleDetailView.as_view(), name="alert-detail"),
-
     # Application settings
     path("api/settings", SettingsView.as_view(), name="settings"),
-
     # Playback – list video segments for a time range
     path("api/playback", PlaybackView.as_view(), name="playback"),
-
     # Reports
     path("api/reports", ReportListView.as_view(), name="reports"),
-
     # HLS file serving (live stream segments)
     path("hls/<path:filename>", HLSView.as_view(), name="hls"),
+    # Recorded segment file serving
+    path("rec/<path:filename>", RecView.as_view(), name="rec"),
 ]

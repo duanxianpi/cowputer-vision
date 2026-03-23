@@ -111,9 +111,18 @@ class SettingSerializer(serializers.ModelSerializer):
 
 
 class VideoSegmentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
     class Meta:
         model = VideoSegment
-        fields = ["id", "filename", "start_ts", "end_ts", "file_path"]
+        fields = ["id", "filename", "start_ts", "end_ts", "url"]
+
+    def get_url(self, obj: VideoSegment) -> str:
+        request = self.context.get("request")
+        path = f"/rec/{obj.filename}"
+        if request is not None:
+            return request.build_absolute_uri(path)
+        return path
 
 
 # ---------------------------------------------------------------------------

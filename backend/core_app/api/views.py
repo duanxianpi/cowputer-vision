@@ -11,6 +11,7 @@ Endpoints implemented:
     GET        /api/playback   – List video segments for a time range
     GET        /api/reports    – List / retrieve reports
     GET        /hls/<filename> – Serve HLS files (.m3u8 / .ts)
+    GET        /rec/<filename> – Serve archived recording files (.ts)
 """
 
 from __future__ import annotations
@@ -22,7 +23,12 @@ from django.conf import settings as django_settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.http import FileResponse, HttpResponse
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    inline_serializer,
+)
 from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -32,7 +38,15 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .jsonlogic_to_q import jsonlogic_to_q
-from .models import AlertEvent, AlertRule, AppConfig, Report, Setting, TrackingData, VideoSegment
+from .models import (
+    AlertEvent,
+    AlertRule,
+    AppConfig,
+    Report,
+    Setting,
+    TrackingData,
+    VideoSegment,
+)
 from .serializers import (
     AlertEventSerializer,
     AlertRuleSerializer,
@@ -67,6 +81,7 @@ _DetailResponseSerializer = inline_serializer(
 # Helper
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def _jwt_pair_for_user(user: User) -> dict:
     """Generate an access / refresh token pair for *user*."""
     refresh = RefreshToken.for_user(user)
@@ -80,6 +95,7 @@ def _jwt_pair_for_user(user: User) -> dict:
 # GET/POST  /api/setup
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class SetupView(APIView):
     """Check initialization status and perform first-time setup."""
 
@@ -88,7 +104,11 @@ class SetupView(APIView):
     @extend_schema(
         summary="Check initialization status",
         description="Returns whether the application has been initialized.",
-        responses={200: inline_serializer("InitStatus", {"initialized": drf_serializers.BooleanField()})},
+        responses={
+            200: inline_serializer(
+                "InitStatus", {"initialized": drf_serializers.BooleanField()}
+            )
+        },
         tags=["Setup"],
     )
     def get(self, request: Request) -> Response:
@@ -142,6 +162,7 @@ class SetupView(APIView):
 # POST  /api/auth
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class AuthView(APIView):
     """Authenticate a user and return a JWT token pair."""
 
@@ -181,6 +202,7 @@ class AuthView(APIView):
 # POST  /api/tracks
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TracksView(APIView):
     """Query tracking data using a JsonLogic rule set."""
 
@@ -215,7 +237,9 @@ class TracksView(APIView):
         logic = request.data
         if not isinstance(logic, dict):
             return Response(
-                {"detail": "Request body must be a JSON object containing a JsonLogic rule."},
+                {
+                    "detail": "Request body must be a JSON object containing a JsonLogic rule."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -230,6 +254,7 @@ class TracksView(APIView):
 # GET/PUT/DELETE  /api/alerts/<id>  — detail
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class AlertRuleListView(APIView):
     """List all alert rules or create a new one."""
 
@@ -239,14 +264,22 @@ class AlertRuleListView(APIView):
         summary="List alert rules",
         description="Retrieve all alert rules. Pass `?include_events=true` to include triggered events.",
         parameters=[
-            OpenApiParameter("include_events", str, OpenApiParameter.QUERY, description="Include triggered events", enum=["true", "false"]),
+            OpenApiParameter(
+                "include_events",
+                str,
+                OpenApiParameter.QUERY,
+                description="Include triggered events",
+                enum=["true", "false"],
+            ),
         ],
         responses={200: AlertRuleSerializer(many=True)},
         tags=["Alerts"],
     )
     def get(self, request: Request) -> Response:
         rules = AlertRule.objects.all().order_by("-id")
-        include_events = request.query_params.get("include_events", "").lower() == "true"
+        include_events = (
+            request.query_params.get("include_events", "").lower() == "true"
+        )
         if include_events:
             rules = rules.prefetch_related("events")
             serializer = AlertRuleSerializer(rules, many=True)
@@ -327,6 +360,7 @@ class AlertRuleDetailView(APIView):
 # GET/POST/DELETE  /api/settings
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class SettingsView(APIView):
     """Manage application key-value settings."""
 
@@ -335,7 +369,12 @@ class SettingsView(APIView):
     @extend_schema(
         summary="Get all settings",
         description="Return all application settings as a JSON object `{key: value, ...}`.",
-        responses={200: inline_serializer("SettingsMap", {"key": drf_serializers.CharField(help_text="Example key-value pair")})},
+        responses={
+            200: inline_serializer(
+                "SettingsMap",
+                {"key": drf_serializers.CharField(help_text="Example key-value pair")},
+            )
+        },
         tags=["Settings"],
     )
     def get(self, request: Request) -> Response:
@@ -389,6 +428,7 @@ class SettingsView(APIView):
 # GET  /api/playback
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class PlaybackView(APIView):
     """List video segments overlapping a given time range."""
 
@@ -398,10 +438,25 @@ class PlaybackView(APIView):
         summary="List playback segments",
         description="List video segments overlapping the given time range.",
         parameters=[
-            OpenApiParameter("start", int, OpenApiParameter.QUERY, required=True, description="Start Unix timestamp"),
-            OpenApiParameter("end", int, OpenApiParameter.QUERY, required=True, description="End Unix timestamp"),
+            OpenApiParameter(
+                "start",
+                int,
+                OpenApiParameter.QUERY,
+                required=True,
+                description="Start Unix timestamp",
+            ),
+            OpenApiParameter(
+                "end",
+                int,
+                OpenApiParameter.QUERY,
+                required=True,
+                description="End Unix timestamp",
+            ),
         ],
-        responses={200: VideoSegmentSerializer(many=True), 400: _DetailResponseSerializer},
+        responses={
+            200: VideoSegmentSerializer(many=True),
+            400: _DetailResponseSerializer,
+        },
         tags=["Playback"],
     )
     def get(self, request: Request) -> Response:
@@ -423,18 +478,19 @@ class PlaybackView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        segments = (
-            VideoSegment.objects
-            .filter(start_ts__lte=end_ts, end_ts__gte=start_ts)
-            .order_by("start_ts")
+        segments = VideoSegment.objects.filter(
+            start_ts__lte=end_ts, end_ts__gte=start_ts
+        ).order_by("start_ts")
+        serializer = VideoSegmentSerializer(
+            segments, many=True, context={"request": request}
         )
-        serializer = VideoSegmentSerializer(segments, many=True)
         return Response(serializer.data)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # GET  /api/reports
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class ReportListView(APIView):
     """List available reports or retrieve a single report by ID."""
@@ -445,7 +501,13 @@ class ReportListView(APIView):
         summary="List or retrieve reports",
         description="Without parameters: list all reports (lightweight). With `?report_id=<uuid>`: retrieve a full report including data.",
         parameters=[
-            OpenApiParameter("report_id", str, OpenApiParameter.QUERY, required=False, description="UUID of the report to retrieve in full"),
+            OpenApiParameter(
+                "report_id",
+                str,
+                OpenApiParameter.QUERY,
+                required=False,
+                description="UUID of the report to retrieve in full",
+            ),
         ],
         responses={200: ReportDetailSerializer},
         tags=["Reports"],
@@ -457,7 +519,9 @@ class ReportListView(APIView):
             try:
                 report = Report.objects.get(report_id=report_id)
             except Report.DoesNotExist:
-                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+                return Response(
+                    {"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND
+                )
             serializer = ReportDetailSerializer(report)
             return Response(serializer.data)
 
@@ -491,7 +555,9 @@ class HLSView(APIView):
         summary="Serve HLS file",
         description="Serve an HLS `.m3u8` playlist or `.ts` segment from the storage directory.",
         responses={
-            200: OpenApiResponse(description="HLS playlist (.m3u8) or transport stream segment (.ts)"),
+            200: OpenApiResponse(
+                description="HLS playlist (.m3u8) or transport stream segment (.ts)"
+            ),
             404: _DetailResponseSerializer,
         },
         tags=["HLS"],
@@ -502,13 +568,66 @@ class HLSView(APIView):
 
         # Prevent directory-traversal attacks.
         if not str(file_path).startswith(str(hls_dir.resolve())):
-            return Response({"detail": "Invalid path."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Invalid path."}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         if not file_path.is_file():
-            return Response({"detail": "File not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "File not found."}, status=status.HTTP_404_NOT_FOUND
+            )
 
         suffix = file_path.suffix.lower()
-        content_type = _HLS_MIME.get(suffix, mimetypes.guess_type(str(file_path))[0] or "application/octet-stream")
+        content_type = _HLS_MIME.get(
+            suffix,
+            mimetypes.guess_type(str(file_path))[0] or "application/octet-stream",
+        )
+
+        if getattr(django_settings, "USE_X_SENDFILE", False):
+            response = HttpResponse(content_type=content_type)
+            response["X-Sendfile"] = str(file_path)
+            return response
+
+        return FileResponse(
+            open(file_path, "rb"),  # noqa: SIM115 – FileResponse closes the handle
+            content_type=content_type,
+        )
+
+
+class RecView(APIView):
+    """Serve archived recording segment files from disk."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Serve recorded segment",
+        description="Serve an archived `.ts` recording segment from the recordings directory.",
+        responses={
+            200: OpenApiResponse(description="Transport stream segment (.ts)"),
+            404: _DetailResponseSerializer,
+        },
+        tags=["Playback"],
+    )
+    def get(self, request: Request, filename: str) -> HttpResponse:
+        rec_dir = Path(django_settings.REC_DIR)
+        file_path = (rec_dir / filename).resolve()
+
+        # Prevent directory-traversal attacks.
+        if not str(file_path).startswith(str(rec_dir.resolve())):
+            return Response(
+                {"detail": "Invalid path."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not file_path.is_file():
+            return Response(
+                {"detail": "File not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        suffix = file_path.suffix.lower()
+        content_type = _HLS_MIME.get(
+            suffix,
+            mimetypes.guess_type(str(file_path))[0] or "application/octet-stream",
+        )
 
         if getattr(django_settings, "USE_X_SENDFILE", False):
             response = HttpResponse(content_type=content_type)
