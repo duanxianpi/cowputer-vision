@@ -1,5 +1,5 @@
 """
-MetadataSyncer — watches the recording directory for new ``.ts`` segments
+MetadataSyncer — watches the recording directory for new ``.m4s`` segments
 and inserts/updates ``VideoSegment`` records in the database.
 
 Uses the ``watchdog`` library for filesystem event monitoring and calls
@@ -36,8 +36,8 @@ def _get_model():
     return _VideoSegment
 
 
-class _TsFileHandler(FileSystemEventHandler):
-    """watchdog handler — fires when a new ``.ts`` file appears."""
+class _SegmentFileHandler(FileSystemEventHandler):
+    """watchdog handler — fires when a new ``.m4s`` segment file appears."""
 
     def __init__(self, index_path: str, rec_dir: str) -> None:
         super().__init__()
@@ -48,7 +48,7 @@ class _TsFileHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         src_path: str = str(event.src_path)
-        if not src_path.endswith(".ts"):
+        if not src_path.endswith(".m4s"):
             return
         logger.info("New segment detected (created): %s", src_path)
         # Small delay — FFmpeg may still be writing the file / index
@@ -57,11 +57,11 @@ class _TsFileHandler(FileSystemEventHandler):
 
     def on_moved(self, event: FileMovedEvent) -> None:  # type: ignore[override]
         """Handle rename events — FFmpeg with ``-hls_flags temp_file``
-        writes to a ``.tmp`` file first, then renames to ``.ts``."""
+        writes to a ``.tmp`` file first, then renames to ``.m4s``."""
         if event.is_directory:
             return
         dest_path: str = str(event.dest_path)
-        if not dest_path.endswith(".ts"):
+        if not dest_path.endswith(".m4s"):
             return
         logger.info("New segment detected (moved): %s", dest_path)
         # Small delay — FFmpeg may still be updating the index
@@ -114,7 +114,7 @@ class MetadataSyncer:
         os.makedirs(self._rec_dir, exist_ok=True)
         self._full_sync()
 
-        handler = _TsFileHandler(self._index_path, self._rec_dir)
+        handler = _SegmentFileHandler(self._index_path, self._rec_dir)
         observer = Observer()
         observer.schedule(handler, self._rec_dir, recursive=False)
         observer.start()

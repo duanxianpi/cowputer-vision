@@ -174,34 +174,34 @@ class RetentionService:
     # ------------------------------------------------------------------
 
     def _cleanup_orphaned_files(self, retention_max: float) -> None:
-        """Delete oldest ``.ts`` files on disk that have no DB record.
+        """Delete oldest segment files on disk that have no DB record.
 
         Called when all DB-tracked segments have been purged but disk
         usage still exceeds *retention_max*.
         """
         try:
-            ts_files = [
+            segment_files = [
                 os.path.join(self._rec_dir, f)
                 for f in os.listdir(self._rec_dir)
-                if f.endswith(".ts")
+                if f.endswith((".m4s", ".ts"))
             ]
         except OSError as exc:
             logger.warning("Could not list %s: %s", self._rec_dir, exc)
             return
 
-        if not ts_files:
+        if not segment_files:
             logger.warning(
-                "No .ts files found in %s but disk usage exceeds limit "
-                "(non-.ts files may be consuming space)",
+                "No segment files found in %s but disk usage exceeds limit "
+                "(non-segment files may be consuming space)",
                 self._rec_dir,
             )
             return
 
         # Sort by modification time — oldest first
-        ts_files.sort(key=lambda p: os.path.getmtime(p))
+        segment_files.sort(key=lambda p: os.path.getmtime(p))
 
         deleted = 0
-        for path in ts_files:
+        for path in segment_files:
             usage = self._dir_size_gb(self._rec_dir)
             if usage <= retention_max:
                 break
