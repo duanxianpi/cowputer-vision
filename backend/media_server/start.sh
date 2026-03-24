@@ -104,8 +104,7 @@ exec ffmpeg -y \
     -f hls \
     -hls_time "$REC_HLS_TIME" \
     -hls_list_size 0 \
-    -hls_segment_type fmp4 \
     -hls_flags program_date_time+temp_file \
-    -hls_segment_filename "$REC_DIR/archive_%Y%m%d_%H%M%S.m4s" \
+    -hls_segment_filename "$REC_DIR/archive_%Y%m%d_%H%M%S.ts" \
     -strftime 1 \
     "$REC_DIR/index.m3u8"

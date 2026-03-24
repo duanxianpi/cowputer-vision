@@ -534,11 +534,10 @@ class ReportListView(APIView):
 # GET  /hls/<path:filename>
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Custom MIME types for HLS segments.
+# Custom MIME types for HLS and recording segments.
 _HLS_MIME: dict[str, str] = {
     ".m3u8": "application/vnd.apple.mpegurl",
     ".ts": "video/mp2t",
-    ".m4s": "video/mp4",
     ".mp4": "video/mp4",
 }
 
@@ -603,11 +602,9 @@ class RecView(APIView):
 
     @extend_schema(
         summary="Serve recorded segment",
-        description="Serve an archived `.m4s` recording segment from the recordings directory.",
+        description="Serve an archived `.mp4` recording segment from the recordings directory.",
         responses={
-            200: OpenApiResponse(
-                description="fMP4 segment (.m4s) or init segment (.mp4)"
-            ),
+            200: OpenApiResponse(description="MP4 video segment"),
             404: _DetailResponseSerializer,
         },
         tags=["Playback"],

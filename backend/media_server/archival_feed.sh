@@ -8,12 +8,12 @@
 # consumed by the PlaybackManager.
 #
 # Design-doc spec:
-#   Format     : HLS (fMP4: .m3u8 + .m4s + init.mp4)
+#   Format     : HLS (.m3u8 + .ts), remuxed to .mp4 by PlaybackManager
 #   Duration   : -hls_time 600 (10-minute segments)
 #   Persistence: -hls_list_size 0 (keep all in index)
-#   Naming     : archive_%Y%m%d_%H%M%S.m4s (strftime)
+#   Naming     : archive_%Y%m%d_%H%M%S.ts (strftime)
 #   Timestamps : -hls_flags program_date_time
-#   Output     : ${REC_DIR}/index.m3u8  +  .m4s files
+#   Output     : ${REC_DIR}/index.m3u8  +  .ts files
 #
 # Usage:
 #   ./archival_feed.sh                          # uses defaults
@@ -45,8 +45,7 @@ exec ffmpeg -y \
     -f hls \
     -hls_time "$REC_HLS_TIME" \
     -hls_list_size 0 \
-    -hls_segment_type fmp4 \
     -hls_flags program_date_time+temp_file \
-    -hls_segment_filename "$REC_DIR/archive_%Y%m%d_%H%M%S.m4s" \
+    -hls_segment_filename "$REC_DIR/archive_%Y%m%d_%H%M%S.ts" \
     -strftime 1 \
     "$REC_DIR/index.m3u8"

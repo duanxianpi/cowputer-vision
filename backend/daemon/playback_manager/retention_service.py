@@ -183,7 +183,7 @@ class RetentionService:
             segment_files = [
                 os.path.join(self._rec_dir, f)
                 for f in os.listdir(self._rec_dir)
-                if f.endswith((".m4s", ".ts"))
+                if f.endswith((".mp4", ".ts"))
             ]
         except OSError as exc:
             logger.warning("Could not list %s: %s", self._rec_dir, exc)

@@ -1,6 +1,7 @@
 """
-MetadataSyncer — watches the recording directory for new ``.m4s`` segments
-and inserts/updates ``VideoSegment`` records in the database.
+MetadataSyncer — watches the recording directory for new ``.ts`` segments,
+remuxes them to ``.mp4``, and inserts/updates ``VideoSegment`` records in
+the database.
 
 Uses the ``watchdog`` library for filesystem event monitoring and calls
 ``IndexParser`` to extract timestamps.
@@ -8,6 +9,7 @@ Uses the ``watchdog`` library for filesystem event monitoring and calls
 
 import logging
 import os
+import subprocess
 import time
 from typing import Any, Optional
 
@@ -36,8 +38,60 @@ def _get_model():
     return _VideoSegment
 
 
+def _remux_to_mp4(ts_path: str) -> str | None:
+    """Remux a ``.ts`` file to ``.mp4`` (container swap, no re-encode).
+
+    Returns the path to the new ``.mp4`` file on success, or ``None``
+    on failure. The original ``.ts`` file is deleted after a successful
+    remux.
+    """
+    if not os.path.isfile(ts_path):
+        return None
+
+    mp4_path = os.path.splitext(ts_path)[0] + ".mp4"
+
+    try:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                ts_path,
+                "-c",
+                "copy",
+                "-movflags",
+                "+faststart",
+                mp4_path,
+            ],
+            check=True,
+            capture_output=True,
+            timeout=120,
+        )
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ) as exc:
+        logger.warning("Remux failed for %s: %s", ts_path, exc)
+        # Clean up partial output
+        if os.path.isfile(mp4_path):
+            os.remove(mp4_path)
+        return None
+
+    # Remove the original .ts file
+    try:
+        os.remove(ts_path)
+    except OSError:
+        pass
+
+    logger.info(
+        "Remuxed %s → %s", os.path.basename(ts_path), os.path.basename(mp4_path)
+    )
+    return mp4_path
+
+
 class _SegmentFileHandler(FileSystemEventHandler):
-    """watchdog handler — fires when a new ``.m4s`` segment file appears."""
+    """watchdog handler — fires when a new ``.ts`` file appears."""
 
     def __init__(self, index_path: str, rec_dir: str) -> None:
         super().__init__()
@@ -48,7 +102,7 @@ class _SegmentFileHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         src_path: str = str(event.src_path)
-        if not src_path.endswith(".m4s"):
+        if not src_path.endswith(".ts"):
             return
         logger.info("New segment detected (created): %s", src_path)
         # Small delay — FFmpeg may still be writing the file / index
@@ -57,11 +111,11 @@ class _SegmentFileHandler(FileSystemEventHandler):
 
     def on_moved(self, event: FileMovedEvent) -> None:  # type: ignore[override]
         """Handle rename events — FFmpeg with ``-hls_flags temp_file``
-        writes to a ``.tmp`` file first, then renames to ``.m4s``."""
+        writes to a ``.tmp`` file first, then renames to ``.ts``."""
         if event.is_directory:
             return
         dest_path: str = str(event.dest_path)
-        if not dest_path.endswith(".m4s"):
+        if not dest_path.endswith(".ts"):
             return
         logger.info("New segment detected (moved): %s", dest_path)
         # Small delay — FFmpeg may still be updating the index
@@ -69,22 +123,30 @@ class _SegmentFileHandler(FileSystemEventHandler):
         self._sync_segment(os.path.basename(dest_path))
 
     def _sync_segment(self, filename: str) -> None:
-        """Parse the index and upsert the record for *filename*."""
+        """Parse the index, remux .ts → .mp4, and upsert the DB record."""
         segments = IndexParser.parse(self._index_path)
         for seg in segments:
             if seg.filename == filename:
+                ts_path = os.path.join(self._rec_dir, seg.filename)
+                mp4_path = _remux_to_mp4(ts_path)
+                if mp4_path is None:
+                    mp4_path = ts_path  # fallback: keep .ts if remux fails
+                    mp4_filename = seg.filename
+                else:
+                    mp4_filename = os.path.basename(mp4_path)
+
                 VideoSegment = _get_model()
                 VideoSegment.objects.update_or_create(
-                    filename=seg.filename,
+                    filename=mp4_filename,
                     defaults={
                         "start_ts": seg.start_ts_ms,
                         "end_ts": seg.end_ts_ms,
-                        "file_path": os.path.join(self._rec_dir, seg.filename),
+                        "file_path": mp4_path,
                     },
                 )
                 logger.info(
                     "Upserted VideoSegment %s [%d → %d]",
-                    seg.filename,
+                    mp4_filename,
                     seg.start_ts_ms,
                     seg.end_ts_ms,
                 )
@@ -128,7 +190,7 @@ class MetadataSyncer:
             logger.info("MetadataSyncer stopped")
 
     def _full_sync(self) -> None:
-        """Parse entire index and upsert all segments."""
+        """Parse entire index, remux any .ts files, and upsert all segments."""
         segments = IndexParser.parse(self._index_path)
         if not segments:
             logger.info("No segments found during full sync")
@@ -137,12 +199,20 @@ class MetadataSyncer:
         VideoSegment = _get_model()
         created = 0
         for seg in segments:
+            ts_path = os.path.join(self._rec_dir, seg.filename)
+            mp4_path = _remux_to_mp4(ts_path)
+            if mp4_path is None:
+                mp4_path = ts_path
+                mp4_filename = seg.filename
+            else:
+                mp4_filename = os.path.basename(mp4_path)
+
             _, was_created = VideoSegment.objects.update_or_create(
-                filename=seg.filename,
+                filename=mp4_filename,
                 defaults={
                     "start_ts": seg.start_ts_ms,
                     "end_ts": seg.end_ts_ms,
-                    "file_path": os.path.join(self._rec_dir, seg.filename),
+                    "file_path": mp4_path,
                 },
             )
             if was_created:
