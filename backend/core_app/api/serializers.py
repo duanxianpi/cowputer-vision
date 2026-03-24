@@ -2,6 +2,8 @@
 DRF serializers for the Cow-puter Vision API.
 """
 
+from urllib.parse import quote
+
 from rest_framework import serializers
 
 from .models import (
@@ -119,7 +121,7 @@ class VideoSegmentSerializer(serializers.ModelSerializer):
 
     def get_url(self, obj: VideoSegment) -> str:
         request = self.context.get("request")
-        path = f"/rec/{obj.filename}"
+        path = f"/rec/{quote(obj.filename, safe='')}"
         if request is not None:
             return request.build_absolute_uri(path)
         return path
