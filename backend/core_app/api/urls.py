@@ -11,6 +11,7 @@ from .views import (
     AlertRuleListView,
     AuthView,
     HLSView,
+    MediaTokenView,
     PlaybackView,
     RecView,
     ReportListView,
@@ -33,6 +34,8 @@ urlpatterns = [
     path("api/settings", SettingsView.as_view(), name="settings"),
     # Playback – list video segments for a time range
     path("api/playback", PlaybackView.as_view(), name="playback"),
+    # Signed media token for <video> streaming
+    path("api/media-token", MediaTokenView.as_view(), name="media-token"),
     # Reports
     path("api/reports", ReportListView.as_view(), name="reports"),
     # HLS file serving (live stream segments)

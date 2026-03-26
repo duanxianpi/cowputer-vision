@@ -17,11 +17,13 @@ Endpoints implemented:
 from __future__ import annotations
 
 import mimetypes
+import re
 from pathlib import Path
 
 from django.conf import settings as django_settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.core import signing
 from django.http import FileResponse, HttpResponse
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -78,8 +80,13 @@ _DetailResponseSerializer = inline_serializer(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Helper
+# Helpers
 # ═══════════════════════════════════════════════════════════════════════════
+
+# Minimum media token lifetime in seconds (floor when segment is short).
+_MEDIA_TOKEN_MIN_AGE = 600  # 10 minutes
+# Extra buffer added on top of the segment duration.
+_MEDIA_TOKEN_BUFFER = 300  # 5 minutes
 
 
 def _jwt_pair_for_user(user: User) -> dict:
@@ -89,6 +96,44 @@ def _jwt_pair_for_user(user: User) -> dict:
         "token": str(refresh.access_token),
         "refresh": str(refresh),
     }
+
+
+def _media_token_max_age(filename: str) -> int:
+    """Compute a token TTL that covers the segment's full playback duration.
+
+    Looks up the ``VideoSegment`` by *filename* to determine its duration.
+    Falls back to ``_MEDIA_TOKEN_MIN_AGE`` when the segment is not found.
+    """
+    try:
+        seg = VideoSegment.objects.filter(filename=filename).first()
+        if seg:
+            duration_s = max((seg.end_ts - seg.start_ts) / 1000, 0)
+            return max(int(duration_s) + _MEDIA_TOKEN_BUFFER, _MEDIA_TOKEN_MIN_AGE)
+    except Exception:
+        pass
+    return _MEDIA_TOKEN_MIN_AGE
+
+
+def _sign_media_token(user_id: int, filename: str) -> str:
+    """Create a signed token granting access to *filename*."""
+    return signing.dumps(
+        {"uid": user_id, "fn": filename},
+        salt="media-token",
+    )
+
+
+def _verify_media_token(token: str, filename: str) -> bool:
+    """Return True if *token* is valid and was issued for *filename*."""
+    max_age = _media_token_max_age(filename)
+    try:
+        data = signing.loads(
+            token,
+            salt="media-token",
+            max_age=max_age,
+        )
+        return data.get("fn") == filename
+    except (signing.BadSignature, signing.SignatureExpired):
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -595,10 +640,69 @@ class HLSView(APIView):
         )
 
 
-class RecView(APIView):
-    """Serve archived recording segment files from disk with HTTP Range support."""
+class MediaTokenView(APIView):
+    """Issue a short-lived signed token for streaming a protected media file."""
 
     permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Generate a signed media URL",
+        description=(
+            "Returns a short-lived signed token for the given filename. "
+            "Append `?token=<value>` to the `/rec/<filename>` URL to stream "
+            "without an Authorization header (e.g. from a <video> element)."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "filename",
+                str,
+                OpenApiParameter.QUERY,
+                required=True,
+                description="The recording filename to generate a token for",
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="MediaTokenResponse",
+                fields={
+                    "token": drf_serializers.CharField(),
+                    "url": drf_serializers.CharField(),
+                    "expires_in": drf_serializers.IntegerField(),
+                },
+            ),
+            400: _DetailResponseSerializer,
+        },
+        tags=["Playback"],
+    )
+    def get(self, request: Request) -> Response:
+        filename = request.query_params.get("filename")
+        if not filename:
+            return Response(
+                {"detail": "Query parameter 'filename' is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        max_age = _media_token_max_age(filename)
+        token = _sign_media_token(request.user.id, filename)
+        url = request.build_absolute_uri(f"/rec/{filename}?token={token}")
+
+        return Response(
+            {
+                "token": token,
+                "url": url,
+                "expires_in": max_age,
+            }
+        )
+
+
+class RecView(APIView):
+    """Serve archived recording segment files from disk with HTTP Range support.
+
+    Accepts either a JWT ``Authorization`` header or a signed ``?token=``
+    query parameter (for ``<video>`` elements that cannot set headers).
+    """
+
+    permission_classes = [AllowAny]  # auth checked manually to support token param
 
     @extend_schema(
         summary="Serve recorded segment",
@@ -611,6 +715,20 @@ class RecView(APIView):
         tags=["Playback"],
     )
     def get(self, request: Request, filename: str) -> HttpResponse:
+        # --- Auth: JWT header OR signed query-param token ----------------
+        token_param = request.query_params.get("token")
+        if token_param:
+            if not _verify_media_token(token_param, filename):
+                return Response(
+                    {"detail": "Invalid or expired media token."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        elif not (request.user and request.user.is_authenticated):
+            return Response(
+                {"detail": "Authentication credentials were not provided."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
         rec_dir = Path(django_settings.REC_DIR)
         file_path = (rec_dir / filename).resolve()
 
@@ -641,8 +759,6 @@ class RecView(APIView):
 
         if range_header:
             # Parse Range: bytes=start-end
-            import re
-
             m = re.match(r"bytes=(\d+)-(\d*)", range_header)
             if not m:
                 return HttpResponse(status=416)  # Range Not Satisfiable
