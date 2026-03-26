@@ -16,6 +16,7 @@ from daemon.settings_store import get_float_setting, get_int_setting
 logger = logging.getLogger(__name__)
 
 _VideoSegment = None
+_TrackingData = None
 
 
 def _get_model():
@@ -25,6 +26,15 @@ def _get_model():
 
         _VideoSegment = VideoSegment
     return _VideoSegment
+
+
+def _get_tracking_model():
+    global _TrackingData
+    if _TrackingData is None:
+        from api.models import TrackingData
+
+        _TrackingData = TrackingData
+    return _TrackingData
 
 
 class RetentionService:
@@ -113,6 +123,7 @@ class RetentionService:
 
     def _cleanup_by_age(self) -> None:
         VideoSegment = _get_model()
+        TrackingData = _get_tracking_model()
         retention_days = self._get_retention_days()
         now_ms = int(time.time() * 1000)
         cutoff_ms = now_ms - (retention_days * 86400 * 1000)
@@ -131,6 +142,15 @@ class RetentionService:
                 retention_days,
             )
 
+        # Purge tracking data older than the retention window
+        td_deleted, _ = TrackingData.objects.filter(timestamp__lt=cutoff_ms).delete()
+        if td_deleted:
+            logger.info(
+                "Age-based cleanup: deleted %d tracking records (retention=%d days)",
+                td_deleted,
+                retention_days,
+            )
+
     def _cleanup_by_disk(self) -> None:
         retention_max = self._get_retention_max_disk_gb()
         usage = self._dir_size_gb(self._rec_dir)
@@ -144,6 +164,8 @@ class RetentionService:
         )
 
         VideoSegment = _get_model()
+        TrackingData = _get_tracking_model()
+        max_deleted_ts = 0
 
         while usage > retention_max:
             oldest = VideoSegment.objects.order_by("start_ts").first()
@@ -164,8 +186,21 @@ class RetentionService:
                     retention_max,
                 )
                 break
+            if oldest.end_ts > max_deleted_ts:
+                max_deleted_ts = oldest.end_ts
             oldest.delete()
             usage -= file_size
+
+        # Purge tracking data up to the latest deleted segment's end timestamp
+        if max_deleted_ts:
+            td_deleted, _ = TrackingData.objects.filter(
+                timestamp__lte=max_deleted_ts
+            ).delete()
+            if td_deleted:
+                logger.info(
+                    "Disk-based cleanup: deleted %d tracking records",
+                    td_deleted,
+                )
 
         logger.info("Disk cleanup complete — current usage %.2f GB", usage)
 

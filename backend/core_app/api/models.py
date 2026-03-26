@@ -22,10 +22,16 @@ class VideoSegment(models.Model):
 
 class TrackingData(models.Model):
     id = models.BigAutoField(primary_key=True)
-    cow_id = models.CharField(max_length=100)
-    timestamp = models.BigIntegerField()
-    behavior = models.CharField(max_length=100)
+    cow_id = models.CharField(max_length=100, db_index=True)
+    timestamp = models.BigIntegerField(db_index=True)
+    behavior = models.CharField(max_length=100, db_index=True)
     bbox = models.JSONField()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["timestamp", "behavior"], name="idx_ts_behavior"),
+            models.Index(fields=["timestamp", "cow_id"], name="idx_ts_cowid"),
+        ]
 
 
 class AlertRule(models.Model):
