@@ -596,15 +596,16 @@ class HLSView(APIView):
 
 
 class RecView(APIView):
-    """Serve archived recording segment files from disk."""
+    """Serve archived recording segment files from disk with HTTP Range support."""
 
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
         summary="Serve recorded segment",
-        description="Serve an archived `.mp4` recording segment from the recordings directory.",
+        description="Serve an archived `.mp4` recording segment from the recordings directory. Supports HTTP Range requests for streaming playback.",
         responses={
             200: OpenApiResponse(description="MP4 video segment"),
+            206: OpenApiResponse(description="Partial content (range request)"),
             404: _DetailResponseSerializer,
         },
         tags=["Playback"],
@@ -635,7 +636,44 @@ class RecView(APIView):
             response["X-Sendfile"] = str(file_path)
             return response
 
-        return FileResponse(
+        file_size = file_path.stat().st_size
+        range_header = request.META.get("HTTP_RANGE")
+
+        if range_header:
+            # Parse Range: bytes=start-end
+            import re
+
+            m = re.match(r"bytes=(\d+)-(\d*)", range_header)
+            if not m:
+                return HttpResponse(status=416)  # Range Not Satisfiable
+
+            start = int(m.group(1))
+            end = int(m.group(2)) if m.group(2) else file_size - 1
+            end = min(end, file_size - 1)
+
+            if start > end or start >= file_size:
+                resp = HttpResponse(status=416)
+                resp["Content-Range"] = f"bytes */{file_size}"
+                return resp
+
+            length = end - start + 1
+            fh = open(file_path, "rb")  # noqa: SIM115
+            fh.seek(start)
+
+            response = FileResponse(
+                fh,
+                content_type=content_type,
+                status=206,
+            )
+            response["Content-Length"] = length
+            response["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+            response["Accept-Ranges"] = "bytes"
+            return response
+
+        response = FileResponse(
             open(file_path, "rb"),  # noqa: SIM115 – FileResponse closes the handle
             content_type=content_type,
         )
+        response["Accept-Ranges"] = "bytes"
+        response["Content-Length"] = file_size
+        return response
