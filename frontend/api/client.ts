@@ -381,7 +381,7 @@ Example body:
 ]);
 
 export const api = new Zodios(
-  "https://bread-taste-omaha-shower.trycloudflare.com",
+  "http://70.69.192.6:29831/",
   endpoints
 );
 
