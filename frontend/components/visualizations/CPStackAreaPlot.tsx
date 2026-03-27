@@ -1,6 +1,7 @@
 'use client'
 
 import ReactECharts from 'echarts-for-react';
+import { getSeriesColor } from '@/constants/behaviorColors';
 
 export interface TrendSeries {
   name: string;
@@ -46,7 +47,9 @@ export default function CPStackAreaPlot({ timeData, seriesData, loading = false 
       stack: 'Total',
       areaStyle: {},
       emphasis: { focus: 'series' },
-      data: s.data
+      data: s.data,
+      itemStyle: { color: getSeriesColor(s.name) },
+      lineStyle: { color: getSeriesColor(s.name) },
     }))
   };
 

@@ -1,5 +1,5 @@
-import { trackService } from "@/services/track";
-import { useQuery } from "@tanstack/react-query";
+import { TrackingData, trackService } from "@/services/track";
+import { useQuery, UseQueryOptions } from "@tanstack/react-query";
 
 export type TrackFilter = {
     behavior?: string[];
@@ -7,7 +7,10 @@ export type TrackFilter = {
     timeWindowMinutes?: number;
   };
 
-export function useTracks(filter: TrackFilter) {
+export function useTracks(
+  filter: TrackFilter,
+  options?: Omit<UseQueryOptions<TrackingData[]>, "queryKey" | "queryFn">
+) {
     return useQuery({
       queryKey: ["tracks", filter.behavior, filter.cowId, filter.timeWindowMinutes],
       
@@ -22,7 +25,6 @@ export function useTracks(filter: TrackFilter) {
           sinceTimestamp,
         });
       },
-      
-      refetchInterval: 5000, 
+      ...options,
     });
   }
