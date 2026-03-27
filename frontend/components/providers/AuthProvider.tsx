@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -18,9 +20,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (isChecking) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", marginTop: "20vh" }}>
-        Loading...
-      </div>
+      <></>
     );
   }
 

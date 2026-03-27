@@ -1,4 +1,7 @@
-import { api } from "@/api/client";
+import { api, schemas } from "@/api/client";
+import { z } from "zod";
+
+export type TrackingData = z.infer<typeof schemas.TrackingData>;
 
 export const trackService = {
   fetchTracks: (filter: { behavior?: string[]; cowId?: string; sinceTimestamp?: number }) => {

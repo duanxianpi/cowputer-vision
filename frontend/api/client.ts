@@ -14,30 +14,52 @@ const AlertRule = z
   .object({
     id: z.number().int(),
     name: z.string().max(255),
+    description: z.string().optional(),
     conditions: z.unknown(),
     actions: z.unknown(),
     is_active: z.boolean().optional(),
-    events: z.array(AlertEvent),
+    last_modified_at: z.string().datetime({ offset: true }),
+    events: z.array(AlertEvent).optional(),
+  })
+  .passthrough();
+const AlertRuleWriteRequest = z
+  .object({
+    name: z.string().min(1).max(255),
+    description: z.string().optional(),
+    conditions: z.unknown(),
+    actions: z.unknown(),
+    is_active: z.boolean().optional(),
   })
   .passthrough();
 const AlertRuleWrite = z
   .object({
     id: z.number().int(),
     name: z.string().max(255),
+    description: z.string().optional(),
     conditions: z.unknown(),
     actions: z.unknown(),
     is_active: z.boolean().optional(),
+    last_modified_at: z.string().datetime({ offset: true }),
   })
   .passthrough();
 const DetailResponse = z.object({ detail: z.string() }).passthrough();
-const Auth = z
-  .object({ username: z.string().max(150), password: z.string().max(128) })
+const AuthRequest = z
+  .object({
+    username: z.string().min(1).max(150),
+    password: z.string().min(1).max(128),
+  })
   .passthrough();
 const TokenResponse = z
   .object({ token: z.string(), refresh: z.string() })
   .passthrough();
+const TokenRefreshRequest = z
+  .object({ refresh: z.string().min(1) })
+  .passthrough();
 const TokenRefresh = z
   .object({ access: z.string(), refresh: z.string() })
+  .passthrough();
+const MediaTokenResponse = z
+  .object({ token: z.string(), url: z.string(), expires_in: z.number().int() })
   .passthrough();
 const VideoSegment = z
   .object({
@@ -49,7 +71,7 @@ const VideoSegment = z
       .gte(-9223372036854776000)
       .lte(9223372036854776000),
     end_ts: z.number().int().gte(-9223372036854776000).lte(9223372036854776000),
-    file_path: z.string().max(1024),
+    url: z.string(),
   })
   .passthrough();
 const ReportDetail = z
@@ -60,14 +82,14 @@ const ReportDetail = z
     generated_at: z.string().datetime({ offset: true }),
   })
   .passthrough();
-const SettingsMap = z.object({ key: z.string() }).passthrough();
+const SettingsMap = z.record(z.string());
 const InitStatus = z.object({ initialized: z.boolean() }).passthrough();
-const Setup = z
+const SetupRequest = z
   .object({
-    username: z.string().max(150),
-    password: z.string().max(128),
-    email: z.string().email(),
-    rtsp_url: z.string().max(255),
+    username: z.string().min(3).max(150),
+    password: z.string().min(8).max(128),
+    email: z.string().min(1).email(),
+    rtsp_url: z.string().min(1).max(255),
   })
   .passthrough();
 const TrackingData = z
@@ -87,16 +109,19 @@ const TrackingData = z
 export const schemas = {
   AlertEvent,
   AlertRule,
+  AlertRuleWriteRequest,
   AlertRuleWrite,
   DetailResponse,
-  Auth,
+  AuthRequest,
   TokenResponse,
+  TokenRefreshRequest,
   TokenRefresh,
+  MediaTokenResponse,
   VideoSegment,
   ReportDetail,
   SettingsMap,
   InitStatus,
-  Setup,
+  SetupRequest,
   TrackingData,
 };
 
@@ -126,7 +151,7 @@ const endpoints = makeApi([
       {
         name: "body",
         type: "Body",
-        schema: AlertRuleWrite,
+        schema: AlertRuleWriteRequest,
       },
     ],
     response: AlertRuleWrite,
@@ -162,7 +187,7 @@ const endpoints = makeApi([
       {
         name: "body",
         type: "Body",
-        schema: AlertRuleWrite,
+        schema: AlertRuleWriteRequest,
       },
       {
         name: "id",
@@ -209,7 +234,7 @@ const endpoints = makeApi([
       {
         name: "body",
         type: "Body",
-        schema: Auth,
+        schema: AuthRequest,
       },
     ],
     response: TokenResponse,
@@ -231,10 +256,31 @@ token if the refresh token is valid.`,
       {
         name: "body",
         type: "Body",
-        schema: TokenRefresh,
+        schema: z.object({ refresh: z.string().min(1) }).passthrough(),
       },
     ],
     response: TokenRefresh,
+  },
+  {
+    method: "get",
+    path: "/api/media-token",
+    alias: "api_media_token_retrieve",
+    description: `Returns a short-lived signed token for the given filename. Append &#x60;?token&#x3D;&lt;value&gt;&#x60; to the &#x60;/rec/&lt;filename&gt;&#x60; URL to stream without an Authorization header (e.g. from a &lt;video&gt; element).`,
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "filename",
+        type: "Query",
+        schema: z.string(),
+      },
+    ],
+    response: MediaTokenResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({ detail: z.string() }).passthrough(),
+      },
+    ],
   },
   {
     method: "get",
@@ -275,7 +321,7 @@ token if the refresh token is valid.`,
         schema: z.string().optional(),
       },
     ],
-    response: ReportDetail,
+    response: z.union([z.array(ReportDetail), ReportDetail]),
   },
   {
     method: "get",
@@ -283,7 +329,7 @@ token if the refresh token is valid.`,
     alias: "api_settings_retrieve",
     description: `Return all application settings as a JSON object &#x60;{key: value, ...}&#x60;.`,
     requestFormat: "json",
-    response: z.object({ key: z.string() }).passthrough(),
+    response: z.record(z.string()),
   },
   {
     method: "post",
@@ -326,7 +372,7 @@ token if the refresh token is valid.`,
       {
         name: "body",
         type: "Body",
-        schema: Setup,
+        schema: SetupRequest,
       },
     ],
     response: TokenResponse,
@@ -362,6 +408,27 @@ Example body:
     path: "/hls/:filename",
     alias: "hls_retrieve",
     description: `Serve an HLS &#x60;.m3u8&#x60; playlist or &#x60;.ts&#x60; segment from the storage directory.`,
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "filename",
+        type: "Path",
+        schema: z.string(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: 404,
+        schema: z.object({ detail: z.string() }).passthrough(),
+      },
+    ],
+  },
+  {
+    method: "get",
+    path: "/rec/:filename",
+    alias: "rec_retrieve",
+    description: `Serve an archived &#x60;.mp4&#x60; recording segment from the recordings directory. Supports HTTP Range requests for streaming playback.`,
     requestFormat: "json",
     parameters: [
       {

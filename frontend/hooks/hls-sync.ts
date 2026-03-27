@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import Hls from "hls.js";
 import { trackService } from "@/services/track";
+import { getBehaviorHex } from "@/constants/behaviorColors";
 
 interface VideoElementWithRVFC extends Omit<HTMLVideoElement, 'requestVideoFrameCallback'> {
   requestVideoFrameCallback?: (
@@ -111,15 +112,6 @@ export function useHLSTrackSync({ videoRef, canvasRef, streamUrl, offsetMs = 0, 
             if (item.timestamp === closestTS) cowMap.set(item.cow_id, item);
           });
 
-          // Define colors for different behaviors
-          const BEHAVIOR_COLORS: Record<string, string> = {
-            feeding: '#10b981',   // Emerald 500
-            walking: '#3b82f6',   // Blue 500 
-            standing: '#8b5cf6',  // Violet 500 
-            lying: '#f59e0b',     // Amber 500
-            default: '#ef4444'    // Red 500
-          };
-
           cowMap.forEach((item) => {
             // Filter by active behaviors
             if (!activeBehaviorsRef.current.includes(item.behavior)) return;
@@ -135,7 +127,7 @@ export function useHLSTrackSync({ videoRef, canvasRef, streamUrl, offsetMs = 0, 
             const sw = w * scaleX;
             const sh = h * scaleY;
 
-            const themeColor = BEHAVIOR_COLORS[item.behavior.toLowerCase()] || BEHAVIOR_COLORS.default;
+            const themeColor = getBehaviorHex(item.behavior);
 
             // ==========================================
             ctx.strokeStyle = themeColor;

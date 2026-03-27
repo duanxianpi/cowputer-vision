@@ -2,7 +2,6 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useRouter } from "next/navigation";
 
 import CPInput from "@/components/CPInput";
@@ -10,13 +9,7 @@ import CPButton from "@/components/CPButton";
 import AuthBackground from "../auth-background";
 
 import { useLogin } from "@/hooks/auth";
-
-const loginSchema = z.object({
-  username: z.string().min(1, "用户名/邮箱不能为空").max(150),
-  password: z.string().min(1, "密码不能为空").max(128),
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
+import { LoginSchema, type LoginFormValues } from "@/services/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,7 +19,7 @@ export default function LoginPage() {
     handleSubmit,
     formState: { errors },
   } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(LoginSchema),
   });
 
   const loginMutation = useLogin({
@@ -37,9 +30,6 @@ export default function LoginPage() {
       }
       router.push("/dashboard"); 
     },
-    onError: (error: any) => {
-      console.error("Login Failed:", error);
-    }
   });
 
   const onSubmit = (data: LoginFormValues) => {
@@ -65,26 +55,24 @@ export default function LoginPage() {
             <CPInput 
               {...register("username")} 
               placeholder="Username or Email" 
-              label="Username" 
+              label="Username"
+              error={errors.username?.message}
+              required
             />
-            {errors.username && (
-              <div className="text-red-500 text-sm">{errors.username.message}</div>
-            )}
 
             <CPInput 
               type="password" 
               {...register("password")} 
               placeholder="Password" 
               label="Password"
+              error={errors.password?.message}
+              required
             />
-            {errors.password && (
-              <div className="text-red-500 text-sm">{errors.password.message}</div>
-            )}
 
             {loginMutation.isError && (
-              <div className="text-red-500 text-sm text-center">
-                登录失败，请检查账号密码
-              </div>
+              <p className="text-xs text-red-600 text-center">
+                Login failed. Please check your credentials.
+              </p>
             )}
 
             <CPButton 

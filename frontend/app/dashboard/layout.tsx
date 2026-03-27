@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     const { label, href, icon } = Tabs[key];
     const isTabSelected = selectedTab === href;
     return (
-      <Link href={href} className={`flex mb-2 hover:bg-secondary px-3 py-2 rounded ${isTabSelected ? 'bg-secondary' : ''}`}>
+      <Link href={href} className={`flex mb-2 hover:bg-secondary hover:text-green-900 px-3 py-2 rounded ${isTabSelected ? 'bg-secondary text-green-900' : ''}`}>
         {icon}
         <span className="ml-3 text-sm font-medium">
           {label}
@@ -43,10 +43,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <RequireAuth>
         {/* Sidebar */}
-        <nav className="w-60 bg-white flex flex-col p-4">
+        <nav className="w-60 bg-white flex flex-col p-4 shrink-0 overflow-y-auto">
           <div className="h-12 mb-3 w-full flex flex-row justify-center items-center">
             {/* <div className='h-full w-12 inline-block'>
               <CPLogo />
@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </nav>
 
         {/* Right content */}
-        <main className="flex-1 p-6 bg-gray-50 min-w-0">
+        <main className="flex-1 bg-gray-50 min-w-0 overflow-y-auto">
           {children}
         </main>
       </RequireAuth>
