@@ -162,6 +162,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Backend API for the Cow-puter Vision animal detection system on dairy farms.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 # ---------------------------------------------------------------------------
