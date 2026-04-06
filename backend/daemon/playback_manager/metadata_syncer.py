@@ -130,6 +130,18 @@ class _SegmentFileHandler(FileSystemEventHandler):
                 ts_path = os.path.join(self._rec_dir, seg.filename)
                 mp4_path = _remux_to_mp4(ts_path)
                 if mp4_path is None:
+                    # Remux failed — skip if .mp4 record already exists
+                    stem, ext = os.path.splitext(seg.filename)
+                    VideoSegment = _get_model()
+                    if (
+                        ext == ".ts"
+                        and VideoSegment.objects.filter(filename=stem + ".mp4").exists()
+                    ):
+                        logger.debug(
+                            "Skipping %s — .mp4 record already exists",
+                            seg.filename,
+                        )
+                        return
                     mp4_path = ts_path  # fallback: keep .ts if remux fails
                     mp4_filename = seg.filename
                 else:
@@ -202,6 +214,17 @@ class MetadataSyncer:
             ts_path = os.path.join(self._rec_dir, seg.filename)
             mp4_path = _remux_to_mp4(ts_path)
             if mp4_path is None:
+                # Remux failed — check if an .mp4 record already exists
+                # (the .ts was already remuxed and deleted on a previous run).
+                stem, ext = os.path.splitext(seg.filename)
+                if (
+                    ext == ".ts"
+                    and VideoSegment.objects.filter(filename=stem + ".mp4").exists()
+                ):
+                    logger.debug(
+                        "Skipping %s — .mp4 record already exists", seg.filename
+                    )
+                    continue
                 mp4_path = ts_path
                 mp4_filename = seg.filename
             else:
