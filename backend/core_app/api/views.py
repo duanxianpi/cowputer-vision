@@ -541,6 +541,15 @@ class SettingsView(APIView):
         """Return all settings as ``{key: value, …}``."""
         settings_qs = Setting.objects.all().order_by("key")
         data = {s.key: s.value for s in settings_qs}
+
+        # Include rtsp_url from AppConfig
+        cfg = AppConfig.objects.first()
+        if cfg:
+            data["rtsp_url"] = cfg.rtsp_url
+
+        # Include email from the authenticated user
+        data["email"] = request.user.email
+
         return Response(data)
 
     @extend_schema(
@@ -565,6 +574,16 @@ class SettingsView(APIView):
             )
 
         for key, value in request.data.items():
+            if key == "rtsp_url":
+                cfg = AppConfig.objects.first()
+                if cfg:
+                    cfg.rtsp_url = str(value)
+                    cfg.save(update_fields=["rtsp_url"])
+                continue
+            if key == "email":
+                request.user.email = str(value)
+                request.user.save(update_fields=["email"])
+                continue
             Setting.objects.update_or_create(
                 key=key,
                 defaults={"value": str(value)},
