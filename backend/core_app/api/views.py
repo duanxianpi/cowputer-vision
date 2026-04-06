@@ -9,6 +9,7 @@ Endpoints implemented:
     POST       /api/tracks     – Query tracking data via JsonLogic
     GET/POST   /api/alerts     – List / create alert rules
     GET/PUT/DELETE /api/alerts/<id>  – Alert rule detail
+    DELETE     /api/alerts/<id>/events – Clear alert events for a rule
     GET/POST/DELETE /api/settings    – Application settings CRUD
     GET        /api/playback   – List video segments for a time range
     GET        /api/reports    – List / retrieve reports
@@ -514,6 +515,32 @@ class AlertRuleDetailView(APIView):
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         rule.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AlertEventClearView(APIView):
+    """Clear alert events for a specific rule."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Clear alert events",
+        description="Delete all triggered events for a given alert rule.",
+        responses={
+            200: inline_serializer(
+                "AlertEventClearResponse",
+                {"deleted": drf_serializers.IntegerField()},
+            ),
+            404: _DetailResponseSerializer,
+        },
+        tags=["Alerts"],
+    )
+    def delete(self, request: Request, pk: int) -> Response:
+        try:
+            rule = AlertRule.objects.get(pk=pk)
+        except AlertRule.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        deleted, _ = AlertEvent.objects.filter(rule=rule).delete()
+        return Response({"deleted": deleted})
 
 
 # ═══════════════════════════════════════════════════════════════════════════

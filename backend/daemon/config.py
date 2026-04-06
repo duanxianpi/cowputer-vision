@@ -88,6 +88,9 @@ EVENT_POLL_INTERVAL: float = float(os.getenv("EVENT_POLL_INTERVAL", "1.0"))  # s
 EVENT_LOOKBACK_SECONDS: int = int(os.getenv("EVENT_LOOKBACK_SECONDS", "60"))
 ALERT_DEDUP_MINUTES: int = int(os.getenv("ALERT_DEDUP_MINUTES", "5"))
 ALERT_RULE_REFRESH_SECONDS: int = int(os.getenv("ALERT_RULE_REFRESH_SECONDS", "30"))
+ALERT_EVENT_RETENTION_HOURS: int = int(
+    os.getenv("ALERT_EVENT_RETENTION_HOURS", "24")
+)  # purge alert events older than this; 0 = keep forever
 
 # ---------------------------------------------------------------------------
 # Notification Dispatch

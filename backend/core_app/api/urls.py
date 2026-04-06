@@ -7,6 +7,7 @@ All paths are included into the project root via ``core_app/urls.py``.
 from django.urls import path
 
 from .views import (
+    AlertEventClearView,
     AlertRuleDetailView,
     AlertRuleListView,
     AuthView,
@@ -41,6 +42,11 @@ urlpatterns = [
     # Alert rules CRUD
     path("api/alerts", AlertRuleListView.as_view(), name="alert-list"),
     path("api/alerts/<int:pk>", AlertRuleDetailView.as_view(), name="alert-detail"),
+    path(
+        "api/alerts/<int:pk>/events",
+        AlertEventClearView.as_view(),
+        name="alert-events-clear",
+    ),
     # Application settings
     path("api/settings", SettingsView.as_view(), name="settings"),
     # Playback – list video segments for a time range
