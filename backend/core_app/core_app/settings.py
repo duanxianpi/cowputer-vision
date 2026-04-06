@@ -201,3 +201,8 @@ EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True").lower() in ("true", "1",
 DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL", "alerts@cowputer-vision.local"
 )
+
+# Mailgun (used when EMAIL_BACKEND=core_app.mailgun_backend.MailgunBackend)
+MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY", "")
+MAILGUN_SENDER_DOMAIN = os.environ.get("MAILGUN_SENDER_DOMAIN", "")
+MAILGUN_API_URL = os.environ.get("MAILGUN_API_URL", "https://api.mailgun.net")
