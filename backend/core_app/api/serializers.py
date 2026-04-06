@@ -38,6 +38,19 @@ class AuthSerializer(serializers.Serializer):
     password = serializers.CharField(max_length=128, write_only=True)
 
 
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Validates a password-reset request (email only)."""
+
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Validates the password-reset confirmation (token + new password)."""
+
+    token = serializers.CharField()
+    new_password = serializers.CharField(min_length=8, max_length=128, write_only=True)
+
+
 # ---------------------------------------------------------------------------
 # Tracking Data
 # ---------------------------------------------------------------------------

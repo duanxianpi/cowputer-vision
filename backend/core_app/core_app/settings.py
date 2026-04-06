@@ -206,3 +206,8 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY", "")
 MAILGUN_SENDER_DOMAIN = os.environ.get("MAILGUN_SENDER_DOMAIN", "")
 MAILGUN_API_URL = os.environ.get("MAILGUN_API_URL", "https://api.mailgun.net")
+
+# ---------------------------------------------------------------------------
+# Frontend URL (used in password-reset emails)
+# ---------------------------------------------------------------------------
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")

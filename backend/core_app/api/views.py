@@ -4,6 +4,8 @@ API views for the Cow-puter Vision backend.
 Endpoints implemented:
     GET/POST   /api/setup      – First-time setup & initialization check
     POST       /api/auth       – Login (JWT)
+    POST       /api/password-reset          – Request password reset email
+    POST       /api/password-reset/confirm  – Confirm reset with token
     POST       /api/tracks     – Query tracking data via JsonLogic
     GET/POST   /api/alerts     – List / create alert rules
     GET/PUT/DELETE /api/alerts/<id>  – Alert rule detail
@@ -24,6 +26,7 @@ from django.conf import settings as django_settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.core import signing
+from django.core.mail import send_mail
 from django.http import FileResponse, HttpResponse
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -54,6 +57,8 @@ from .serializers import (
     AlertRuleSerializer,
     AlertRuleWriteSerializer,
     AuthSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
     ReportDetailSerializer,
     ReportListSerializer,
     SettingSerializer,
@@ -241,6 +246,116 @@ class AuthView(APIView):
             )
 
         return Response(_jwt_pair_for_user(user))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# POST  /api/password-reset
+# POST  /api/password-reset/confirm
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Token lifetime for the password-reset link.
+_PASSWORD_RESET_MAX_AGE = 3600  # 1 hour
+
+
+class PasswordResetRequestView(APIView):
+    """Send a password-reset email containing a signed token link."""
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Request password reset",
+        description=(
+            "Send a password-reset email to the registered address. "
+            "Always returns 200 to avoid leaking whether the email exists."
+        ),
+        request=PasswordResetRequestSerializer,
+        responses={200: _DetailResponseSerializer},
+        tags=["Auth"],
+    )
+    def post(self, request: Request) -> Response:
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+
+        user = User.objects.filter(email=email).first()
+        if user is not None:
+            token = signing.dumps(
+                {"uid": user.pk},
+                salt="password-reset",
+            )
+            frontend_url = getattr(
+                django_settings,
+                "FRONTEND_URL",
+                "http://localhost:3000",
+            )
+            reset_link = f"{frontend_url}/reset-password?token={token}"
+
+            send_mail(
+                subject="Cow-puter Vision — Password Reset",
+                message=(
+                    f"Hello {user.username},\n\n"
+                    f"Click the link below to reset your password:\n\n"
+                    f"  {reset_link}\n\n"
+                    f"This link expires in 1 hour.\n\n"
+                    f"If you did not request this, please ignore this email."
+                ),
+                from_email=None,  # uses DEFAULT_FROM_EMAIL
+                recipient_list=[email],
+                fail_silently=True,
+            )
+
+        return Response(
+            {
+                "detail": "If an account with that email exists, a reset link has been sent."
+            }
+        )
+
+
+class PasswordResetConfirmView(APIView):
+    """Verify a signed reset token and set a new password."""
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Confirm password reset",
+        description="Submit the token from the reset email and a new password.",
+        request=PasswordResetConfirmSerializer,
+        responses={
+            200: _DetailResponseSerializer,
+            400: _DetailResponseSerializer,
+        },
+        tags=["Auth"],
+    )
+    def post(self, request: Request) -> Response:
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        token = serializer.validated_data["token"]
+        new_password = serializer.validated_data["new_password"]
+
+        try:
+            data = signing.loads(
+                token,
+                salt="password-reset",
+                max_age=_PASSWORD_RESET_MAX_AGE,
+            )
+        except (signing.BadSignature, signing.SignatureExpired):
+            return Response(
+                {"detail": "Invalid or expired reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(pk=data["uid"])
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Invalid or expired reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response({"detail": "Password has been reset successfully."})
 
 
 # ═══════════════════════════════════════════════════════════════════════════

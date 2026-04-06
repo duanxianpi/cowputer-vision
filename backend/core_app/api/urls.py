@@ -12,6 +12,8 @@ from .views import (
     AuthView,
     HLSView,
     MediaTokenView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
     PlaybackView,
     RecView,
     ReportListView,
@@ -25,6 +27,15 @@ urlpatterns = [
     path("api/setup", SetupView.as_view(), name="setup"),
     # Authentication (JWT login)
     path("api/auth", AuthView.as_view(), name="auth"),
+    # Password reset
+    path(
+        "api/password-reset", PasswordResetRequestView.as_view(), name="password-reset"
+    ),
+    path(
+        "api/password-reset/confirm",
+        PasswordResetConfirmView.as_view(),
+        name="password-reset-confirm",
+    ),
     # Tracking data query (JsonLogic)
     path("api/tracks", TracksView.as_view(), name="tracks"),
     # Alert rules CRUD
