@@ -17,7 +17,7 @@ export interface UseHLSSyncProps {
   activeBehaviors?: string[];
 }
 
-export function useHLSTrackSync({ videoRef, canvasRef, streamUrl, offsetMs = 0, activeBehaviors = [] }: UseHLSSyncProps) {
+export function useHLSTrackSync({ videoRef, canvasRef, streamUrl, offsetMs = -500, activeBehaviors = [] }: UseHLSSyncProps) {
   const trackBufferRef = useRef<any[]>([]);
   const isFetchingRef = useRef(false);
   const syncStateRef = useRef({
