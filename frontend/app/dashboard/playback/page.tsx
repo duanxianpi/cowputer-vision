@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { RefreshCw, Play, Pause, RotateCcw, Rewind, FastForward, Maximize } from "lucide-react";
@@ -8,39 +8,12 @@ import CPPageHeader from "@/components/CPPageHeader";
 import CPButton from "@/components/CPButton";
 import { usePlaybackSegments } from "@/hooks/playback";
 import { playbackService, VideoSegment } from "@/services/playback";
-import { trackService, TrackingData } from "@/services/track";
-import { getBehaviorHex } from "@/constants/behaviorColors";
-import { BEHAVIOR_LABELS } from "@/constants/behaviorColors";
+import { useVideoTrackSync } from "@/hooks/video-track-sync";
 
 const SPEEDS = [1, 2, 4, 8] as const;
-const BBOX_TIME_OFFSET_MS = 5300;
-const MAX_GAP_MS = 3000;
-const PRELOAD_BEFORE_MS = 5000;
-const PRELOAD_AFTER_MS = 15000;
-const BUCKET_SIZE_MS = 5000;
 
 function formatTimestamp(ts: number) {
   return new Date(ts).toLocaleString();
-}
-
-function formatVideoTime(seconds: number) {
-  const total = Math.floor(seconds);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t;
-}
-
-function interpolateBox(prevBox: number[], nextBox: number[], t: number): number[] {
-  return prevBox.map((v, i) => lerp(v, nextBox[i], t));
-}
-
-function formatBehaviorLabel(behavior?: string) {
-  if (!behavior) return "";
-  return BEHAVIOR_LABELS[behavior] ?? behavior;
 }
 
 export default function PlaybackPage() {
@@ -50,7 +23,6 @@ export default function PlaybackPage() {
   const [speed, setSpeed] = useState(1);
 
   const [selectedSegment, setSelectedSegment] = useState<VideoSegment | null>(null);
-  const [tracks, setTracks] = useState<TrackingData[]>([]);
 
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [loadingVideo, setLoadingVideo] = useState(false);
@@ -60,8 +32,7 @@ export default function PlaybackPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
-  const loadedTrackWindowsRef = useRef<Array<{ start: number; end: number }>>([]);
-  const loadingTrackWindowRef = useRef(false);
+  useVideoTrackSync({ videoRef, canvasRef, wrapperRef, segment: selectedSegment, videoSrc, offsetMs: 4500 });
 
   const { data: segments = [], isLoading: loadingSegments, isError, error, refetch } = usePlaybackSegments(selectedDate);
 
@@ -99,14 +70,10 @@ export default function PlaybackPage() {
     if (!selectedSegment) {
       setVideoSrc(null);
       setVideoError("");
-      setTracks([]);
-      loadedTrackWindowsRef.current = [];
       return;
     }
 
     let cancelled = false;
-    setTracks([]);
-    loadedTrackWindowsRef.current = [];
     setLoadingVideo(true);
     setVideoError("");
 
@@ -127,244 +94,7 @@ export default function PlaybackPage() {
     };
   }, [selectedSegment]);
 
-  // Track windowed loading helpers
-  const isWindowLoaded = useCallback((start: number, end: number) => {
-    return loadedTrackWindowsRef.current.some((w) => start >= w.start && end <= w.end);
-  }, []);
 
-  const mergeLoadedWindow = useCallback((start: number, end: number) => {
-    const windows = [...loadedTrackWindowsRef.current, { start, end }];
-    windows.sort((a, b) => a.start - b.start);
-    const merged: Array<{ start: number; end: number }> = [];
-    for (const w of windows) {
-      const last = merged[merged.length - 1];
-      if (!last || w.start > last.end + 1) {
-        merged.push({ ...w });
-      } else {
-        last.end = Math.max(last.end, w.end);
-      }
-    }
-    loadedTrackWindowsRef.current = merged;
-  }, []);
-
-  const loadTracksForWindow = useCallback(async (windowStart: number, windowEnd: number) => {
-    if (loadingTrackWindowRef.current || isWindowLoaded(windowStart, windowEnd)) return;
-
-    loadingTrackWindowRef.current = true;
-    try {
-      const data = await trackService.fetchTracksWindow(windowStart, windowEnd);
-      setTracks((prev) => {
-        const map = new Map<string, TrackingData>();
-        for (const item of prev) map.set(`${item.cow_id}_${item.timestamp}_${item.behavior}`, item);
-        for (const item of data) map.set(`${item.cow_id}_${item.timestamp}_${item.behavior}`, item);
-        return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
-      });
-      mergeLoadedWindow(windowStart, windowEnd);
-    } catch (err) {
-      console.error("loadTracksForWindow error:", err);
-    } finally {
-      loadingTrackWindowRef.current = false;
-    }
-  }, [isWindowLoaded, mergeLoadedWindow]);
-
-  // Preload tracks as video plays
-  useEffect(() => {
-    const video = videoRef.current;
-    const segment = selectedSegment;
-    if (!video || !segment) return;
-
-    let lastRequestedBucket = -1;
-
-    const checkAndLoad = () => {
-      const currentAbsTs = segment.start_ts + video.currentTime * 1000;
-      const bucket = Math.floor(currentAbsTs / BUCKET_SIZE_MS);
-      if (bucket === lastRequestedBucket) return;
-      lastRequestedBucket = bucket;
-
-      const windowStart = Math.max(segment.start_ts, currentAbsTs - PRELOAD_BEFORE_MS);
-      const windowEnd = Math.min(segment.end_ts, currentAbsTs + PRELOAD_AFTER_MS);
-      loadTracksForWindow(windowStart, windowEnd);
-    };
-
-    video.addEventListener("timeupdate", checkAndLoad);
-    video.addEventListener("seeked", checkAndLoad);
-    video.addEventListener("loadeddata", checkAndLoad);
-    checkAndLoad();
-
-    return () => {
-      video.removeEventListener("timeupdate", checkAndLoad);
-      video.removeEventListener("seeked", checkAndLoad);
-      video.removeEventListener("loadeddata", checkAndLoad);
-    };
-  }, [selectedSegment, videoSrc, loadTracksForWindow]);
-
-  // Canvas bbox drawing
-  const drawTracks = useCallback(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const segment = selectedSegment;
-    if (!video || !canvas || !segment) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const rect = (wrapperRef.current ?? video).getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const currentAbsTs = segment.start_ts + video.currentTime * 1000 + BBOX_TIME_OFFSET_MS;
-
-    // Group tracks by cow
-    const grouped = new Map<string, TrackingData[]>();
-    for (const item of tracks) {
-      const bbox = item.bbox as number[];
-      if (!Array.isArray(bbox) || bbox.length < 4) continue;
-      if (!grouped.has(item.cow_id)) grouped.set(item.cow_id, []);
-      grouped.get(item.cow_id)!.push(item);
-    }
-
-    // Find interpolated position per cow
-    const currentTracks: TrackingData[] = [];
-    for (const [, cowTracks] of grouped) {
-      cowTracks.sort((a, b) => a.timestamp - b.timestamp);
-
-      let prev: TrackingData | null = null;
-      let next: TrackingData | null = null;
-      for (const track of cowTracks) {
-        if (track.timestamp <= currentAbsTs) prev = track;
-        if (track.timestamp >= currentAbsTs) { next = track; break; }
-      }
-
-      if (prev && next) {
-        const prevDiff = currentAbsTs - prev.timestamp;
-        const nextDiff = next.timestamp - currentAbsTs;
-        if (prevDiff <= MAX_GAP_MS && nextDiff <= MAX_GAP_MS) {
-          if (prev.timestamp === next.timestamp) {
-            currentTracks.push(prev);
-          } else {
-            const t = (currentAbsTs - prev.timestamp) / (next.timestamp - prev.timestamp);
-            currentTracks.push({
-              ...prev,
-              bbox: interpolateBox(
-                (prev.bbox as number[]).map(Number),
-                (next.bbox as number[]).map(Number),
-                t
-              ),
-              timestamp: currentAbsTs,
-            });
-          }
-        }
-      } else if (prev && currentAbsTs - prev.timestamp <= MAX_GAP_MS) {
-        currentTracks.push(prev);
-      } else if (next && next.timestamp - currentAbsTs <= MAX_GAP_MS) {
-        currentTracks.push(next);
-      }
-    }
-
-    // Compute aspect-ratio-aware scaling
-    const videoWidth = video.videoWidth || rect.width;
-    const videoHeight = video.videoHeight || rect.height;
-    const videoAspect = videoWidth / videoHeight;
-    const containerAspect = rect.width / rect.height;
-
-    let renderWidth: number, renderHeight: number, offsetX: number, offsetY: number;
-    if (videoAspect > containerAspect) {
-      renderWidth = rect.width;
-      renderHeight = rect.width / videoAspect;
-      offsetX = 0;
-      offsetY = (rect.height - renderHeight) / 2;
-    } else {
-      renderHeight = rect.height;
-      renderWidth = rect.height * videoAspect;
-      offsetX = (rect.width - renderWidth) / 2;
-      offsetY = 0;
-    }
-
-    const scaleX = renderWidth / videoWidth;
-    const scaleY = renderHeight / videoHeight;
-
-    // Draw bboxes
-    for (const item of currentTracks) {
-      const box = item.bbox as number[];
-      if (!Array.isArray(box) || box.length < 4) continue;
-      const [x, y, w, h] = box.map(Number);
-
-      const drawX = offsetX + x * scaleX;
-      const drawY = offsetY + y * scaleY;
-      const drawW = w * scaleX;
-      const drawH = h * scaleY;
-
-      const color = getBehaviorHex(item.behavior);
-
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.fillStyle = color + "26";
-      ctx.fillRect(drawX, drawY, drawW, drawH);
-      ctx.strokeRect(drawX, drawY, drawW, drawH);
-
-      const label = `${item.cow_id} · ${formatBehaviorLabel(item.behavior)}`;
-      ctx.font = "600 12px Inter, sans-serif";
-      const paddingX = 6;
-      const paddingY = 4;
-      const textWidth = ctx.measureText(label).width;
-      const textHeight = 12;
-      const badgeHeight = textHeight + paddingY * 2;
-      const badgeWidth = textWidth + paddingX * 2;
-
-      let badgeY = drawY - badgeHeight;
-      if (badgeY < 0) badgeY = drawY;
-
-      ctx.fillStyle = color;
-      ctx.fillRect(drawX, badgeY, badgeWidth, badgeHeight);
-      ctx.fillStyle = "#FFFFFF";
-      ctx.textBaseline = "top";
-      ctx.fillText(label, drawX + paddingX, badgeY + paddingY + 1);
-    }
-  }, [selectedSegment, tracks]);
-
-  // Animation frame loop for drawing
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !videoSrc) return;
-
-    let rafId: number | null = null;
-
-    const startLoop = () => {
-      if (rafId !== null) return;
-      const loop = () => { drawTracks(); rafId = requestAnimationFrame(loop); };
-      rafId = requestAnimationFrame(loop);
-    };
-
-    const stopLoop = () => {
-      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
-    };
-
-    const redraw = () => drawTracks();
-
-    video.addEventListener("play", startLoop);
-    video.addEventListener("pause", stopLoop);
-    video.addEventListener("ended", stopLoop);
-    video.addEventListener("seeked", redraw);
-    video.addEventListener("loadeddata", redraw);
-    video.addEventListener("loadedmetadata", redraw);
-    window.addEventListener("resize", redraw);
-    document.addEventListener("fullscreenchange", redraw);
-
-    if (!video.paused && !video.ended) startLoop(); else redraw();
-
-    return () => {
-      stopLoop();
-      video.removeEventListener("play", startLoop);
-      video.removeEventListener("pause", stopLoop);
-      video.removeEventListener("ended", stopLoop);
-      video.removeEventListener("seeked", redraw);
-      video.removeEventListener("loadeddata", redraw);
-      video.removeEventListener("loadedmetadata", redraw);
-      window.removeEventListener("resize", redraw);
-      document.removeEventListener("fullscreenchange", redraw);
-    };
-  }, [videoSrc, drawTracks]);
 
   const videoStatus = loadingVideo ? "Loading" : videoError ? "Error" : videoSrc ? "Ready" : "Idle";
 

@@ -21,7 +21,7 @@ export default function LiveCameraPage() {
   const [activeBehaviors, setActiveBehaviors] = useState<string[]>(
     AVAILABLE_BEHAVIORS.map(b => b.id)
   );
-  const [offsetMs, setOffsetMs] = useState(0);
+  const [offsetMs, setOffsetMs] = useState(-500);
   const [selectedCow, setSelectedCow] = useState<string>("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
 

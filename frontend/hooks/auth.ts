@@ -1,5 +1,6 @@
 import { AuthPayload, authService, InitStatus, SetupPayload, TokenResponse } from "@/services/auth";
-import { useQuery, useMutation, UseQueryOptions, UseMutationOptions } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, UseQueryOptions, UseMutationOptions } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 export const useInitStatus = (
     options?: Omit<UseQueryOptions<InitStatus>, "queryKey" | "queryFn">
@@ -27,4 +28,16 @@ export const useLogin = (
     mutationFn: authService.login,
     ...options,
   });
+};
+
+export const useLogout = () => {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  return () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    queryClient.clear();
+    router.push("/auth/login");
+  };
 };

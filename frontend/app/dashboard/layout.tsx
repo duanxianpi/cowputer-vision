@@ -7,10 +7,12 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { RequireAuth } from '@/components/providers/AuthProvider';
+import { useLogout } from '@/hooks/auth';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [selectedTab, setSelectedTab] = useState<string>("");
   const pathname = usePathname();
+  const logout = useLogout();
 
   interface Tabs {
     [key: string]: any;
@@ -22,7 +24,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     "Alerts": { label: "Alerts", href: "/dashboard/alerts", icon: <Bell /> },
     "Reports": { label: "Reports", href: "/dashboard/reports", icon: <ChartColumnBig /> },
     "Settings": { label: "Settings", href: "/dashboard/settings", icon: <Settings /> },
-    "Logout": { label: "Logout", href: "/auth/login", icon: <LogOut /> },
   };
 
   useEffect(() => {
@@ -64,7 +65,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className='flex flex-col'>
               {renderTab("Settings")}
-              {renderTab("Logout")}
+              <button
+                onClick={logout}
+                className="flex mb-2 hover:bg-secondary hover:text-green-900 px-3 py-2 rounded w-full text-left"
+              >
+                <LogOut />
+                <span className="ml-3 text-sm font-medium">Logout</span>
+              </button>
             </div>
           </div>
         </nav>
