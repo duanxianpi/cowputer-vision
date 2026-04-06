@@ -93,11 +93,6 @@ class InferenceEngine:
         batch = []
         last_flush_time = time.time()
 
-        # FPS tracking
-        # fps_frame_count = 0
-        # fps_start_time = time.time()
-        # fps_log_interval = 5.0  # log FPS every 5 seconds
-
         while self._running:
             frame, ts = stream.read()
 
@@ -129,15 +124,6 @@ class InferenceEngine:
             # Stamp each detection with the frame's capture timestamp
             for det in detections:
                 det.timestamp = ts
-
-            # Update FPS counter
-            # fps_frame_count += 1
-            # elapsed = now - fps_start_time
-            # if elapsed >= fps_log_interval:
-            #     current_fps = fps_frame_count / elapsed
-            #     logger.info("Inference FPS: %.2f", current_fps)
-            #     fps_frame_count = 0
-            #     fps_start_time = now
 
             if detections:
                 batch.extend(detections)

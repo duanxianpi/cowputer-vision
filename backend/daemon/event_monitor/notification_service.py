@@ -3,9 +3,13 @@ NotificationService — creates ``AlertEvent`` records when alert rules
 are triggered and provides a deduplication window to avoid alert spam.
 """
 
+import json
 import logging
+import urllib.request
+import urllib.error
 from datetime import timedelta
 
+from django.core.mail import send_mail
 from django.utils import timezone
 
 from daemon import config
@@ -89,17 +93,77 @@ class NotificationService:
             state.duration_seconds,
         )
 
-        # Future: send email, webhook, push notification, etc.
         self._dispatch_external(rule, details)
         return True
 
     @staticmethod
     def _dispatch_external(rule, details: dict) -> None:
-        """Stub for external notification channels.
+        """Send notifications to external channels defined in ``rule.actions``.
 
-        The ``rule.actions`` JSON can specify channels (e.g.
-        ``{"email": "farmer@example.com"}``).  This method is a
-        placeholder for future implementation.
+        Supported keys in ``rule.actions``:
+
+        * ``"email"`` — recipient address; sends a plain-text alert email.
+        * ``"webhook"`` — HTTPS URL; receives a JSON POST with alert details.
+
+        Each channel is dispatched independently; a failure in one channel
+        does not block the others and is logged as a warning.
         """
-        # TODO: Implement email / webhook dispatch based on rule.actions
-        pass
+        actions = rule.actions
+        if not actions or not isinstance(actions, dict):
+            return
+
+        if "email" in actions:
+            _send_email_alert(actions["email"], rule.name, details)
+
+        if "webhook" in actions:
+            _send_webhook_alert(actions["webhook"], rule.name, details)
+
+
+def _send_email_alert(recipient: str, rule_name: str, details: dict) -> None:
+    """Send an alert email to *recipient*."""
+    subject = f"Cow-puter Vision Alert: {rule_name}"
+    body = (
+        f'Alert rule "{rule_name}" triggered.\n\n'
+        f"Cow ID:    {details.get('cow_id', 'N/A')}\n"
+        f"Behavior:  {details.get('behavior', 'N/A')}\n"
+        f"Duration:  {details.get('duration_seconds', 0):.1f}s\n"
+        f"Timestamp: {details.get('timestamp', 'N/A')}\n"
+    )
+    try:
+        send_mail(
+            subject,
+            body,
+            config.DEFAULT_FROM_EMAIL,
+            [recipient],
+            fail_silently=False,
+        )
+        logger.info("Email alert sent to %s for rule=%s", recipient, rule_name)
+    except Exception:
+        logger.warning(
+            "Failed to send email alert to %s for rule=%s",
+            recipient,
+            rule_name,
+            exc_info=True,
+        )
+
+
+def _send_webhook_alert(url: str, rule_name: str, details: dict) -> None:
+    """POST alert details as JSON to *url*."""
+    payload = json.dumps({"rule": rule_name, **details}).encode()
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=config.WEBHOOK_TIMEOUT):
+            pass
+        logger.info("Webhook alert sent to %s for rule=%s", url, rule_name)
+    except (urllib.error.URLError, OSError):
+        logger.warning(
+            "Failed to send webhook alert to %s for rule=%s",
+            url,
+            rule_name,
+            exc_info=True,
+        )

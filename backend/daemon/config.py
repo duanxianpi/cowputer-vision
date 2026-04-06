@@ -90,6 +90,14 @@ ALERT_DEDUP_MINUTES: int = int(os.getenv("ALERT_DEDUP_MINUTES", "5"))
 ALERT_RULE_REFRESH_SECONDS: int = int(os.getenv("ALERT_RULE_REFRESH_SECONDS", "30"))
 
 # ---------------------------------------------------------------------------
+# Notification Dispatch
+# ---------------------------------------------------------------------------
+DEFAULT_FROM_EMAIL: str = os.getenv(
+    "DEFAULT_FROM_EMAIL", "alerts@cowputer-vision.local"
+)
+WEBHOOK_TIMEOUT: int = int(os.getenv("WEBHOOK_TIMEOUT", "10"))  # seconds
+
+# ---------------------------------------------------------------------------
 # Report Manager
 # ---------------------------------------------------------------------------
 REPORT_SCHEDULE_HOUR: int = int(

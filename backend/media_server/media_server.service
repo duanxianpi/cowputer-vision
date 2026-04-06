@@ -12,13 +12,13 @@
 
 [Unit]
 Description=Cow-puter Vision Media Server (FFmpeg Dual-Output HLS)
-Documentation=https://github.com/your-org/capstone-backend
+Documentation=https://github.com/cowputer-vision/capstone-backend
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=exec
-# --- Paths — adjust to your deployment ---------------------------------
+# --- Paths ---------------------------------------------------------------
 WorkingDirectory=/opt/capstone-backend
 ExecStart=/opt/capstone-backend/media_server/start.sh
 
