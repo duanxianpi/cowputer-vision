@@ -6,6 +6,8 @@ Endpoints implemented:
     POST       /api/auth       – Login (JWT)
     POST       /api/password-reset          – Request password reset email
     POST       /api/password-reset/confirm  – Confirm reset with token
+    POST       /api/email-reset             – Request email change verification
+    POST       /api/email-reset/confirm     – Confirm email change with token
     POST       /api/tracks     – Query tracking data via JsonLogic
     GET/POST   /api/alerts     – List / create alert rules
     GET/PUT/DELETE /api/alerts/<id>  – Alert rule detail
@@ -58,6 +60,7 @@ from .serializers import (
     AlertRuleSerializer,
     AlertRuleWriteSerializer,
     AuthSerializer,
+    EmailResetConfirmSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     ReportDetailSerializer,
@@ -360,6 +363,113 @@ class PasswordResetConfirmView(APIView):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# POST  /api/email-reset
+# POST  /api/email-reset/confirm
+# ═══════════════════════════════════════════════════════════════════════════
+
+_EMAIL_RESET_MAX_AGE = 3600  # 1 hour
+
+
+class EmailResetRequestView(APIView):
+    """Send an email-change verification link to the user's current email."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Request email change",
+        description=(
+            "Send a verification link to the user's current email address. "
+            "The link leads to a frontend page where the user enters the new email."
+        ),
+        responses={200: _DetailResponseSerializer},
+        tags=["Auth"],
+    )
+    def post(self, request: Request) -> Response:
+        user = request.user
+        if not user.email:
+            return Response(
+                {"detail": "No email address on file."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        token = signing.dumps(
+            {"uid": user.pk},
+            salt="email-reset",
+        )
+        frontend_url = getattr(
+            django_settings,
+            "FRONTEND_URL",
+            "http://localhost:3000",
+        )
+        reset_link = f"{frontend_url}/reset-email?token={token}"
+
+        send_mail(
+            subject="Cow-puter Vision — Email Change Request",
+            message=(
+                f"Hello {user.username},\n\n"
+                f"Click the link below to change your email address:\n\n"
+                f"  {reset_link}\n\n"
+                f"This link expires in 1 hour.\n\n"
+                f"If you did not request this, please ignore this email."
+            ),
+            from_email=None,
+            recipient_list=[user.email],
+            fail_silently=True,
+        )
+
+        return Response(
+            {"detail": "A verification link has been sent to your current email."}
+        )
+
+
+class EmailResetConfirmView(APIView):
+    """Verify a signed email-reset token and update the user's email."""
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Confirm email change",
+        description="Submit the token from the verification email and the new email address.",
+        request=EmailResetConfirmSerializer,
+        responses={
+            200: _DetailResponseSerializer,
+            400: _DetailResponseSerializer,
+        },
+        tags=["Auth"],
+    )
+    def post(self, request: Request) -> Response:
+        serializer = EmailResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        token = serializer.validated_data["token"]
+        new_email = serializer.validated_data["new_email"]
+
+        try:
+            data = signing.loads(
+                token,
+                salt="email-reset",
+                max_age=_EMAIL_RESET_MAX_AGE,
+            )
+        except (signing.BadSignature, signing.SignatureExpired):
+            return Response(
+                {"detail": "Invalid or expired reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(pk=data["uid"])
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Invalid or expired reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.email = new_email
+        user.save(update_fields=["email"])
+
+        return Response({"detail": "Email has been updated successfully."})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # POST  /api/tracks
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -608,9 +718,7 @@ class SettingsView(APIView):
                     cfg.save(update_fields=["rtsp_url"])
                 continue
             if key == "email":
-                request.user.email = str(value)
-                request.user.save(update_fields=["email"])
-                continue
+                continue  # email is changed via /api/email-reset flow
             Setting.objects.update_or_create(
                 key=key,
                 defaults={"value": str(value)},

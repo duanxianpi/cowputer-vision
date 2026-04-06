@@ -51,6 +51,13 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     new_password = serializers.CharField(min_length=8, max_length=128, write_only=True)
 
 
+class EmailResetConfirmSerializer(serializers.Serializer):
+    """Validates the email-reset confirmation (token + new email)."""
+
+    token = serializers.CharField()
+    new_email = serializers.EmailField()
+
+
 # ---------------------------------------------------------------------------
 # Tracking Data
 # ---------------------------------------------------------------------------

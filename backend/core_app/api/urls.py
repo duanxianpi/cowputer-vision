@@ -11,6 +11,8 @@ from .views import (
     AlertRuleDetailView,
     AlertRuleListView,
     AuthView,
+    EmailResetConfirmView,
+    EmailResetRequestView,
     HLSView,
     MediaTokenView,
     PasswordResetConfirmView,
@@ -36,6 +38,13 @@ urlpatterns = [
         "api/password-reset/confirm",
         PasswordResetConfirmView.as_view(),
         name="password-reset-confirm",
+    ),
+    # Email reset
+    path("api/email-reset", EmailResetRequestView.as_view(), name="email-reset"),
+    path(
+        "api/email-reset/confirm",
+        EmailResetConfirmView.as_view(),
+        name="email-reset-confirm",
     ),
     # Tracking data query (JsonLogic)
     path("api/tracks", TracksView.as_view(), name="tracks"),
