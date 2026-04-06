@@ -381,6 +381,7 @@ class EmailResetRequestView(APIView):
             "Send a verification link to the user's current email address. "
             "The link leads to a frontend page where the user enters the new email."
         ),
+        request=None,
         responses={200: _DetailResponseSerializer},
         tags=["Auth"],
     )
