@@ -13,6 +13,13 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Load .env from the backend root (parent of core_app/).
+_env_file = Path(__file__).resolve().parent.parent.parent / ".env"
+if _env_file.is_file():
+    load_dotenv(_env_file, override=False)
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -201,11 +208,6 @@ EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True").lower() in ("true", "1",
 DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL", "alerts@cowputer-vision.local"
 )
-
-# Mailgun (used when EMAIL_BACKEND=core_app.mailgun_backend.MailgunBackend)
-MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY", "")
-MAILGUN_SENDER_DOMAIN = os.environ.get("MAILGUN_SENDER_DOMAIN", "")
-MAILGUN_API_URL = os.environ.get("MAILGUN_API_URL", "https://api.mailgun.net")
 
 # ---------------------------------------------------------------------------
 # Frontend URL (used in password-reset emails)
