@@ -19,6 +19,8 @@ const config = {
     "^next/navigation$": "<rootDir>/test/mocks/nextNavigationMock.ts",
     "^echarts-for-react$": "<rootDir>/test/mocks/reactEchartsMock.tsx",
     "^hls.js$": "<rootDir>/test/mocks/hlsMock.ts",
+    "^motion$": "<rootDir>/test/mocks/motionMock.tsx",
+    "^framer-motion$": "<rootDir>/test/mocks/motionMock.tsx",
   },
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   testMatch: ["<rootDir>/__tests__/**/*.test.(ts|tsx)"],
