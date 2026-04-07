@@ -17,7 +17,7 @@ function formatTimestamp(ts: number) {
 }
 
 export default function PlaybackPage() {
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("en-CA"); // Format: YYYY-MM-DD
   const [selectedDate, setSelectedDate] = useState(today);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);

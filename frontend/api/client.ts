@@ -43,6 +43,9 @@ const AlertRuleWrite = z
   })
   .passthrough();
 const DetailResponse = z.object({ detail: z.string() }).passthrough();
+const AlertEventClearResponse = z
+  .object({ deleted: z.number().int() })
+  .passthrough();
 const AuthRequest = z
   .object({
     username: z.string().min(1).max(150),
@@ -58,8 +61,20 @@ const TokenRefreshRequest = z
 const TokenRefresh = z
   .object({ access: z.string(), refresh: z.string() })
   .passthrough();
+const EmailResetConfirmRequest = z
+  .object({ token: z.string().min(1), new_email: z.string().min(1).email() })
+  .passthrough();
 const MediaTokenResponse = z
   .object({ token: z.string(), url: z.string(), expires_in: z.number().int() })
+  .passthrough();
+const PasswordResetRequestRequest = z
+  .object({ email: z.string().min(1).email() })
+  .passthrough();
+const PasswordResetConfirmRequest = z
+  .object({
+    token: z.string().min(1),
+    new_password: z.string().min(8).max(128),
+  })
   .passthrough();
 const VideoSegment = z
   .object({
@@ -112,11 +127,15 @@ export const schemas = {
   AlertRuleWriteRequest,
   AlertRuleWrite,
   DetailResponse,
+  AlertEventClearResponse,
   AuthRequest,
   TokenResponse,
   TokenRefreshRequest,
   TokenRefresh,
+  EmailResetConfirmRequest,
   MediaTokenResponse,
+  PasswordResetRequestRequest,
+  PasswordResetConfirmRequest,
   VideoSegment,
   ReportDetail,
   SettingsMap,
@@ -225,6 +244,27 @@ const endpoints = makeApi([
     ],
   },
   {
+    method: "delete",
+    path: "/api/alerts/:id/events",
+    alias: "api_alerts_events_destroy",
+    description: `Delete all triggered events for a given alert rule.`,
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "id",
+        type: "Path",
+        schema: z.number().int(),
+      },
+    ],
+    response: z.object({ deleted: z.number().int() }).passthrough(),
+    errors: [
+      {
+        status: 404,
+        schema: z.object({ detail: z.string() }).passthrough(),
+      },
+    ],
+  },
+  {
     method: "post",
     path: "/api/auth",
     alias: "api_auth_create",
@@ -262,6 +302,35 @@ token if the refresh token is valid.`,
     response: TokenRefresh,
   },
   {
+    method: "post",
+    path: "/api/email-reset",
+    alias: "api_email_reset_create",
+    description: `Send a verification link to the user&#x27;s current email address. The link leads to a frontend page where the user enters the new email.`,
+    requestFormat: "json",
+    response: z.object({ detail: z.string() }).passthrough(),
+  },
+  {
+    method: "post",
+    path: "/api/email-reset/confirm",
+    alias: "api_email_reset_confirm_create",
+    description: `Submit the token from the verification email and the new email address.`,
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: EmailResetConfirmRequest,
+      },
+    ],
+    response: z.object({ detail: z.string() }).passthrough(),
+    errors: [
+      {
+        status: 400,
+        schema: z.object({ detail: z.string() }).passthrough(),
+      },
+    ],
+  },
+  {
     method: "get",
     path: "/api/media-token",
     alias: "api_media_token_retrieve",
@@ -275,6 +344,42 @@ token if the refresh token is valid.`,
       },
     ],
     response: MediaTokenResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({ detail: z.string() }).passthrough(),
+      },
+    ],
+  },
+  {
+    method: "post",
+    path: "/api/password-reset",
+    alias: "api_password_reset_create",
+    description: `Send a password-reset email to the registered address. Always returns 200 to avoid leaking whether the email exists.`,
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.object({ email: z.string().min(1).email() }).passthrough(),
+      },
+    ],
+    response: z.object({ detail: z.string() }).passthrough(),
+  },
+  {
+    method: "post",
+    path: "/api/password-reset/confirm",
+    alias: "api_password_reset_confirm_create",
+    description: `Submit the token from the reset email and a new password.`,
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: PasswordResetConfirmRequest,
+      },
+    ],
+    response: z.object({ detail: z.string() }).passthrough(),
     errors: [
       {
         status: 400,
