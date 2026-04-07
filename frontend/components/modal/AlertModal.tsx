@@ -7,7 +7,7 @@ import { type RuleGroupType } from "react-querybuilder";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useCreateAlert, useUpdateAlert, useDeleteAlert, useRetrieveAlert } from "@/hooks/alert";
+import { useCreateAlert, useUpdateAlert, useDeleteAlert, useRetrieveAlert, useDeleteAlertEvents } from "@/hooks/alert";
 import { AlertRule, AlertEvent } from "@/services/alert";
 import CPModal from "@/components/CPModal";
 import CPButton from "@/components/CPButton";
@@ -80,6 +80,7 @@ export default function AlertModal({ isOpen, onClose, alert }: AlertModalProps) 
   const createMutation = useCreateAlert();
   const updateMutation = useUpdateAlert();
   const deleteMutation = useDeleteAlert();
+  const deleteEventsMutation = useDeleteAlertEvents();
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [conditionQuery, setConditionQuery] = useState<RuleGroupType>(defaultQuery);
   const [conditionError, setConditionError] = useState<string | null>(null);
@@ -291,17 +292,37 @@ export default function AlertModal({ isOpen, onClose, alert }: AlertModalProps) 
       {/* History tab */}
       {activeTab === "history" && (
         <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
-          {isLoadingDetail ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} height={48} borderRadius={8} />
-            ))
-          ) : events.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-8">
-              No alert events have been triggered yet.
-            </p>
-          ) : (
-            events.map((event) => <EventEntry key={event.id} event={event} />)
-          )}
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-900">Triggered Events</h3>
+            {events.length > 0 && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!confirm("Are you sure you want to delete all events for this alert? This action cannot be undone.")) return;
+                  if (alert?.id) {
+                    await deleteEventsMutation.mutateAsync(alert.id);
+                  }
+                }}
+                disabled={deleteEventsMutation.isPending}
+                className="text-xs px-3 py-1.5 rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {deleteEventsMutation.isPending ? "Deleting..." : "Delete All"}
+              </button>
+            )}
+          </div>
+          <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+            {isLoadingDetail ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} height={48} borderRadius={8} />
+              ))
+            ) : events.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-8">
+                No alert events have been triggered yet.
+              </p>
+            ) : (
+              events.map((event) => <EventEntry key={event.id} event={event} />)
+            )}
+          </div>
         </div>
       )}
 

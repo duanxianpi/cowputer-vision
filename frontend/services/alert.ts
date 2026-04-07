@@ -33,4 +33,8 @@ export const alertService = {
   deleteAlert: (id: number) => api.api_alerts_destroy(undefined,{
     params: { id },
   }),
+
+  deleteAlertEvents: (id: number) => api.api_alerts_events_destroy(undefined, {
+    params: { id },
+  }),
 };

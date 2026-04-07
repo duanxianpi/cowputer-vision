@@ -45,3 +45,14 @@ export const useDeleteAlert = () => {
     },
   });
 };
+
+export const useDeleteAlertEvents = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: alertService.deleteAlertEvents,
+    onSuccess: (_, alertId) => {
+      queryClient.invalidateQueries({ queryKey: ['alert', alertId] });
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+    },
+  });
+};
