@@ -41,11 +41,11 @@ def test_post_settings_no_auth(api_client):
 
 
 @pytest.mark.django_db
-def test_get_settings_empty(authenticated_client):
-    """Returns 200 with empty dict when no settings exist."""
+def test_get_settings_empty(authenticated_client, admin_user):
+    """Returns 200 with only the user email when no Setting rows exist."""
     response = authenticated_client.get(SETTINGS_URL)
     assert response.status_code == 200
-    assert response.json() == {}
+    assert response.json() == {"email": admin_user.email}
 
 
 @pytest.mark.django_db

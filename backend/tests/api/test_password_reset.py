@@ -70,7 +70,9 @@ def test_request_reset_missing_email_returns_400(api_client):
 @pytest.mark.django_db
 def test_confirm_reset_with_valid_token(api_client, admin_user):
     """A valid token allows setting a new password."""
-    token = signing.dumps({"uid": admin_user.pk}, salt="password-reset")
+    # Generate token via the request endpoint so it includes the fingerprint.
+    api_client.post(REQUEST_URL, {"email": admin_user.email}, format="json")
+    token = mail.outbox[0].body.split("token=")[1].split()[0]
     response = api_client.post(
         CONFIRM_URL,
         {"token": token, "new_password": "newSecurePass99"},
@@ -160,7 +162,8 @@ def test_confirm_reset_missing_token(api_client):
 @pytest.mark.django_db
 def test_old_password_no_longer_works_after_reset(api_client, admin_user):
     """After resetting, the old password no longer authenticates."""
-    token = signing.dumps({"uid": admin_user.pk}, salt="password-reset")
+    api_client.post(REQUEST_URL, {"email": admin_user.email}, format="json")
+    token = mail.outbox[0].body.split("token=")[1].split()[0]
     api_client.post(
         CONFIRM_URL,
         {"token": token, "new_password": "brandNewPass123"},
