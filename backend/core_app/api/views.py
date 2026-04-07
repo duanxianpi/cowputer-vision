@@ -21,6 +21,8 @@ Endpoints implemented:
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import mimetypes
 import re
 from pathlib import Path
@@ -261,6 +263,16 @@ class AuthView(APIView):
 _PASSWORD_RESET_MAX_AGE = 3600  # 1 hour
 
 
+def _fingerprint(value: str) -> str:
+    """Return a short HMAC digest of *value* for embedding in tokens.
+
+    This allows single-use token validation without leaking sensitive
+    data (password hashes, emails) in the base64-encoded token payload.
+    """
+    key = django_settings.SECRET_KEY.encode()
+    return hmac.new(key, value.encode(), hashlib.sha256).hexdigest()[:16]
+
+
 class PasswordResetRequestView(APIView):
     """Send a password-reset email containing a signed token link."""
 
@@ -284,7 +296,7 @@ class PasswordResetRequestView(APIView):
         user = User.objects.filter(email=email).first()
         if user is not None:
             token = signing.dumps(
-                {"uid": user.pk},
+                {"uid": user.pk, "fp": _fingerprint(user.password)},
                 salt="password-reset",
             )
             frontend_url = getattr(
@@ -356,6 +368,13 @@ class PasswordResetConfirmView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Token is single-use: reject if the password has already changed.
+        if _fingerprint(user.password) != data.get("fp"):
+            return Response(
+                {"detail": "This reset link has already been used."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         user.set_password(new_password)
         user.save()
 
@@ -394,7 +413,7 @@ class EmailResetRequestView(APIView):
             )
 
         token = signing.dumps(
-            {"uid": user.pk},
+            {"uid": user.pk, "fp": _fingerprint(user.email)},
             salt="email-reset",
         )
         frontend_url = getattr(
@@ -461,6 +480,13 @@ class EmailResetConfirmView(APIView):
         except User.DoesNotExist:
             return Response(
                 {"detail": "Invalid or expired reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Token is single-use: reject if the email has already changed.
+        if _fingerprint(user.email) != data.get("fp"):
+            return Response(
+                {"detail": "This reset link has already been used."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
