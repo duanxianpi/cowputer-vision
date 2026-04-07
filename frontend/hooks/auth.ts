@@ -1,4 +1,13 @@
-import { AuthPayload, authService, InitStatus, SetupPayload, TokenResponse } from "@/services/auth";
+import {
+  AuthPayload,
+  authService,
+  EmailResetConfirmPayload,
+  InitStatus,
+  PasswordResetConfirmPayload,
+  PasswordResetRequestPayload,
+  SetupPayload,
+  TokenResponse,
+} from "@/services/auth";
 import { useQuery, useMutation, useQueryClient, UseQueryOptions, UseMutationOptions } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
@@ -26,6 +35,42 @@ export const useLogin = (
 ) => {
   return useMutation({
     mutationFn: authService.login,
+    ...options,
+  });
+};
+
+export const usePasswordResetRequest = (
+  options?: Omit<UseMutationOptions<{ detail: string }, Error, PasswordResetRequestPayload>, "mutationFn">
+) => {
+  return useMutation({
+    mutationFn: authService.requestPasswordReset,
+    ...options,
+  });
+};
+
+export const usePasswordResetConfirm = (
+  options?: Omit<UseMutationOptions<{ detail: string }, Error, PasswordResetConfirmPayload>, "mutationFn">
+) => {
+  return useMutation({
+    mutationFn: authService.confirmPasswordReset,
+    ...options,
+  });
+};
+
+export const useEmailResetRequest = (
+  options?: Omit<UseMutationOptions<{ detail: string }, Error, void>, "mutationFn">
+) => {
+  return useMutation({
+    mutationFn: () => authService.requestEmailReset(),
+    ...options,
+  });
+};
+
+export const useEmailResetConfirm = (
+  options?: Omit<UseMutationOptions<{ detail: string }, Error, EmailResetConfirmPayload>, "mutationFn">
+) => {
+  return useMutation({
+    mutationFn: authService.confirmEmailReset,
     ...options,
   });
 };

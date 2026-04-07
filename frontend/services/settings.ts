@@ -2,6 +2,7 @@ import { z } from "zod";
 import { api } from "@/api/client";
 
 export const SETTINGS_FIELD_KEYS = [
+  "email",
   "retention_days",
   "retention_max_disk_gb",
   "retention_check_interval",
@@ -85,9 +86,16 @@ const detectionClassesString = z
     message: 'Use a comma-separated list of class IDs, like "0,1,2".',
   });
 
+const emailString = z
+  .string()
+  .trim()
+  .min(1, "Email is required.")
+  .email("Please enter a valid email address.");
+
 // --- Settings form schema ---
 
 export const settingsFormSchema = z.object({
+  email: emailString,
   retention_days: integerString({ label: "Retention days", min: 1 }),
   retention_max_disk_gb: decimalString({ label: "Retention max disk size", min: 0 }),
   retention_check_interval: integerString({ label: "Retention check interval", min: 1 }),
@@ -108,6 +116,7 @@ export const settingsFormSchema = z.object({
 export type SettingsFormValues = z.infer<typeof settingsFormSchema>;
 
 export const DEFAULT_SETTINGS: SettingsFormValues = {
+  email: "",
   retention_days: "30",
   retention_max_disk_gb: "100",
   retention_check_interval: "3600",
@@ -125,8 +134,48 @@ export const DEFAULT_SETTINGS: SettingsFormValues = {
   min_bbox_area: "1000",
 };
 
-export function toFormValues(settings?: Record<string, string>): SettingsFormValues {
+function normalizeDayMinutes(totalMinutes: number): number {
+  return ((totalMinutes % 1440) + 1440) % 1440;
+}
+
+function parseHourMinute(hourValue: string, minuteValue: string): { hour: number; minute: number } | null {
+  const hour = Number.parseInt(hourValue, 10);
+  const minute = Number.parseInt(minuteValue, 10);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return { hour, minute };
+}
+
+function convertUtcToLocal(hourValue: string, minuteValue: string): { hour: number; minute: number } | null {
+  const parsed = parseHourMinute(hourValue, minuteValue);
+  if (!parsed) return null;
+
+  const utcTotal = parsed.hour * 60 + parsed.minute;
+  const localTotal = normalizeDayMinutes(utcTotal - new Date().getTimezoneOffset());
+
   return {
+    hour: Math.floor(localTotal / 60),
+    minute: localTotal % 60,
+  };
+}
+
+function convertLocalToUtc(hourValue: string, minuteValue: string): { hour: number; minute: number } | null {
+  const parsed = parseHourMinute(hourValue, minuteValue);
+  if (!parsed) return null;
+
+  const localTotal = parsed.hour * 60 + parsed.minute;
+  const utcTotal = normalizeDayMinutes(localTotal + new Date().getTimezoneOffset());
+
+  return {
+    hour: Math.floor(utcTotal / 60),
+    minute: utcTotal % 60,
+  };
+}
+
+export function toFormValues(settings?: Record<string, string>): SettingsFormValues {
+  const formValues = {
     ...DEFAULT_SETTINGS,
     ...Object.fromEntries(
       SETTINGS_FIELD_KEYS.map((key) => [
@@ -135,15 +184,28 @@ export function toFormValues(settings?: Record<string, string>): SettingsFormVal
       ])
     ),
   } as SettingsFormValues;
+
+  const localReportTime = convertUtcToLocal(formValues.report_hour, formValues.report_minute);
+  if (localReportTime) {
+    formValues.report_hour = String(localReportTime.hour);
+    formValues.report_minute = String(localReportTime.minute);
+  }
+
+  return formValues;
 }
 
 export function normalizePayload(values: SettingsFormValues): SettingsPayload {
+  const localHour = values.report_hour.trim();
+  const localMinute = values.report_minute.trim();
+  const utcReportTime = convertLocalToUtc(localHour, localMinute);
+
   return {
+    email: values.email.trim(),
     retention_days: values.retention_days.trim(),
     retention_max_disk_gb: values.retention_max_disk_gb.trim(),
     retention_check_interval: values.retention_check_interval.trim(),
-    report_hour: values.report_hour.trim(),
-    report_minute: values.report_minute.trim(),
+    report_hour: utcReportTime ? String(utcReportTime.hour) : localHour,
+    report_minute: utcReportTime ? String(utcReportTime.minute) : localMinute,
     alert_dedup_minutes: values.alert_dedup_minutes.trim(),
     alert_rule_refresh_seconds: values.alert_rule_refresh_seconds.trim(),
     event_poll_interval: values.event_poll_interval.trim(),
@@ -170,6 +232,7 @@ export type SettingsFieldConfig = {
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   unit?: string;
   placeholder?: string;
+  readOnly?: boolean;
 };
 
 export type SettingsSection = {
@@ -179,6 +242,19 @@ export type SettingsSection = {
 };
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
+  {
+    title: "Setup",
+    description: "Update account contact details.",
+    fields: [
+      {
+        key: "email",
+        label: "Account Email",
+        placeholder: "name@example.com",
+        description: "Current account email (read-only). Use email reset to change it.",
+        readOnly: true,
+      },
+    ],
+  },
   {
     title: "Data Retention",
     description: "Control how long recordings are stored and when old data is cleaned up.",
@@ -213,16 +289,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
       {
         key: "report_hour",
         label: "Report Hour",
-        unit: "UTC (0–23)",
+        unit: "Hour of the day (24-hour)",
         inputMode: "numeric",
-        description: "Hour of the day when the daily summary report is generated.",
+        description: "Enter the hour in your local time using 24-hour format.",
       },
       {
         key: "report_minute",
         label: "Report Minute",
-        unit: "UTC (0–59)",
+        unit: "Minute of the hour (60-minute)",
         inputMode: "numeric",
-        description: "Minute of the hour when the daily summary report is generated.",
+        description: "Enter the minute in your local time for the scheduled report.",
       },
       {
         key: "alert_dedup_minutes",

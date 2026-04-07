@@ -3,6 +3,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import CPInput from "@/components/CPInput";
 import CPButton from "@/components/CPButton";
@@ -54,7 +55,7 @@ export default function LoginPage() {
           >
             <CPInput 
               {...register("username")} 
-              placeholder="Username or Email" 
+              placeholder="Username" 
               label="Username"
               error={errors.username?.message}
               required
@@ -68,6 +69,12 @@ export default function LoginPage() {
               error={errors.password?.message}
               required
             />
+
+            <div className="-mt-1 text-right">
+              <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline">
+                Forgot password?
+              </Link>
+            </div>
 
             {loginMutation.isError && (
               <p className="text-xs text-red-600 text-center">
