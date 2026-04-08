@@ -7,10 +7,8 @@
 pip install -r requirements.txt
 
 # 2. Install YOLOv12 (vendored fork)
-#    The project uses a vendored copy at yolov12/. Install it in editable mode:
-pip install -e yolov12/
-#    Or install directly from upstream:
-#    pip install git+https://github.com/sunsmarterjie/yolov12.git
+#    The project uses a vendored copy at yolov12/. Install it directly from upstream:
+pip install git+https://github.com/sunsmarterjie/yolov12.git
 
 # 3. Create your local environment file
 cp .env.example .env
@@ -136,6 +134,75 @@ Copy `.env.example` to `.env` and edit as needed. The file is git-ignored.
 | Variable           | Default | Description                        |
 | ------------------ | ------- | ---------------------------------- |
 | `DAEMON_LOG_LEVEL` | `INFO`  | Log level for all daemon processes |
+
+## Testing
+
+### Prerequisites
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+This installs `pytest`, `pytest-django`, and `pytest-mock` on top of the
+production dependencies.
+
+### Running Tests
+
+```bash
+# Run the full test suite (154 tests)
+python -m pytest
+
+# Run only API endpoint tests (89 tests)
+python -m pytest tests/api/
+
+# Run only daemon unit tests (63 tests)
+python -m pytest tests/daemon/
+
+# Run only media-server integration tests (2 tests, requires FFmpeg)
+python -m pytest tests/test_media_server.py
+
+# Run with verbose output
+python -m pytest -v
+
+# Skip integration tests (e.g. in CI without FFmpeg)
+python -m pytest -m "not integration"
+```
+
+### Test Structure
+
+```
+tests/
+├── conftest.py                  # Shared fixtures (APIClient, JWT helpers, model factories)
+├── api/                         # API endpoint unit tests (89 tests)
+│   ├── test_setup.py            #   /api/setup        — 11 tests
+│   ├── test_auth.py             #   /api/auth         —  5 tests
+│   ├── test_password_reset.py   #   /api/password-reset — 12 tests
+│   ├── test_tracks.py           #   /api/tracks       —  9 tests
+│   ├── test_alerts.py           #   /api/alerts       — 14 tests
+│   ├── test_settings.py         #   /api/settings     —  9 tests
+│   ├── test_playback.py         #   /api/playback     —  8 tests
+│   ├── test_reports.py          #   /api/reports      —  7 tests
+│   └── test_hls.py              #   /hls/*, /rec/*    — 14 tests
+├── daemon/                      # Daemon unit tests (63 tests)
+│   ├── test_inference_engine.py #   VideoStream, BehaviorClassifier, DatabaseHandler
+│   ├── test_event_monitor.py    #   StateTracker, AlertRuleEngine, NotificationService
+│   ├── test_notification_dispatch.py  # Email & webhook dispatch
+│   ├── test_playback_manager.py #   IndexParser, MetadataSyncer, RetentionService
+│   └── test_report_manager.py   #   ReportGenerator, ReportStorage
+└── test_media_server.py         # Media-server integration tests (2 tests)
+```
+
+### Test Categories
+
+Every API test is tagged with one or more of these categories:
+
+| Category             | What It Verifies                                                         |
+| -------------------- | ------------------------------------------------------------------------ |
+| **Authorization**    | Valid JWT → 2xx; expired/tampered JWT → 401; missing header → 401        |
+| **Input Validation** | Malformed JSON → 400; missing required fields → 400; type mismatch → 400 |
+| **Response Schema**  | Response JSON structure matches the API contract                         |
+| **Database State**   | POST/DELETE actually creates or removes the expected DB row              |
+| **Behavioral**       | Valid input → correct processing; invalid input → proper error           |
 
 ## Architecture
 
