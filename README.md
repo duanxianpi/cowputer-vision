@@ -2,13 +2,25 @@
 
 AI-powered cow monitoring and behavior analysis system for dairy farms. The system uses a YOLOv12-based computer vision pipeline to detect, track, and classify cow behaviors from an RTSP camera feed in real time, with a web dashboard for live viewing, playback, alerting, and reporting.
 
-## Live Demo
+## Screenshots
 
-|              |                           |
-| ------------ | ------------------------- |
-| **URL**      | http://70.69.192.6:29932/ |
-| **Username** | `Admin`                   |
-| **Password** | `Admin1234`               |
+<p align="center">
+  <img src="files/Overview.png" alt="Overview" width="80%" style="box-shadow: 3px 2px 8px rgba(0,0,0,0.5)">
+  <br>
+  <em style="color:#666">Overview</em>
+</p>
+
+<p align="center" style="margin-top: 10px">
+  <img src="files/Live.png" alt="Overview" width="80%" style="box-shadow: 3px 2px 8px rgba(0,0,0,0.5)">
+  <br>
+  <em style="color:#666">Live</em>
+</p>
+
+<p align="center" style="margin-top: 10px">
+  <img src="files/Playback.png" alt="Overview" width="80%" style="box-shadow: 3px 2px 8px rgba(0,0,0,0.5)">
+  <br>
+  <em style="color:#666">Playback</em>
+</p>
 
 ## Features
 
